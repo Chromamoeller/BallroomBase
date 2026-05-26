@@ -23,7 +23,9 @@ DEFAULT_USERS = [
     {"username": "user", "password": "user123", "role": "teilnehmer", "course": "Donnerstag 20:00 Uhr"},
 ]
 
-SAMPLE_FIGURES = {
+SAMPLE_FIGURES = {}
+
+_REMOVED_SAMPLE_FIGURES = {
     "Langsamer Walzer": [
         (
             "Natural Turn",

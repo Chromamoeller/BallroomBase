@@ -25,6 +25,9 @@ CREATE TABLE IF NOT EXISTS users (
     role TEXT NOT NULL CHECK (role IN ('admin', 'teilnehmer')),
     course_id INTEGER NOT NULL,
     has_four_card INTEGER NOT NULL DEFAULT 0,
+    four_card_hours INTEGER NOT NULL DEFAULT 0,
+    four_card_paid_at TEXT,
+    four_card_wraps INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (course_id) REFERENCES courses(id)
 );
 
@@ -101,6 +104,13 @@ def init_db():
         conn.executescript(SCHEMA)
         existing_fig_columns = [row["name"] for row in conn.execute("PRAGMA table_info(figures)").fetchall()]
         existing_seq_columns = [row["name"] for row in conn.execute("PRAGMA table_info(sequences)").fetchall()]
+        existing_user_columns = [row["name"] for row in conn.execute("PRAGMA table_info(users)").fetchall()]
+        if "four_card_hours" not in existing_user_columns:
+            conn.execute("ALTER TABLE users ADD COLUMN four_card_hours INTEGER NOT NULL DEFAULT 0")
+        if "four_card_paid_at" not in existing_user_columns:
+            conn.execute("ALTER TABLE users ADD COLUMN four_card_paid_at TEXT")
+        if "four_card_wraps" not in existing_user_columns:
+            conn.execute("ALTER TABLE users ADD COLUMN four_card_wraps INTEGER NOT NULL DEFAULT 0")
         for column, definition in [
             ("steps", "TEXT"),
             ("count_steps", "TEXT"),
