@@ -30,6 +30,36 @@ export default function HistoriePage() {
   const [editingId, setEditingId] = useState(null);
   const [deletingEntry, setDeletingEntry] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [allOpen, setAllOpen] = useState(false);
+  const [allEntries, setAllEntries] = useState([]);
+  const [allLoading, setAllLoading] = useState(false);
+  const [allError, setAllError] = useState(null);
+
+  async function openAllEntries() {
+    setAllOpen(true);
+    setAllLoading(true);
+    setAllError(null);
+    try {
+      const data = await api.allHistory(user.courseId);
+      setAllEntries(data);
+    } catch (err) {
+      setAllError(err.message);
+    } finally {
+      setAllLoading(false);
+    }
+  }
+
+  function startEdit(entry) {
+    setEditingId(entry.id);
+    setForm({
+      date: entry.date || "",
+      warmup: entry.warmup || "",
+      lesson: entry.lesson || "",
+      cooldown: entry.cooldown || "",
+    });
+    setAllOpen(false);
+    setOpen(true);
+  }
 
   async function load() {
     setLoading(true);
@@ -98,16 +128,21 @@ export default function HistoriePage() {
         description="Die letzten vier Unterrichtswochen im Überblick."
         action={
           isAdmin ? (
-            <button
-              className="btn-primary"
-              onClick={() => {
-                setEditingId(null);
-                setForm({ date: "", warmup: "", lesson: "", cooldown: "" });
-                setOpen(true);
-              }}
-            >
-              Eintrag hinzufügen
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button className="btn-secondary" onClick={openAllEntries}>
+                Alle Einträge anzeigen
+              </button>
+              <button
+                className="btn-primary"
+                onClick={() => {
+                  setEditingId(null);
+                  setForm({ date: "", warmup: "", lesson: "", cooldown: "" });
+                  setOpen(true);
+                }}
+              >
+                Eintrag hinzufügen
+              </button>
+            </div>
           ) : null
         }
       />
@@ -255,6 +290,86 @@ export default function HistoriePage() {
             />
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        open={allOpen}
+        onClose={() => setAllOpen(false)}
+        title="Alle Historieneinträge"
+        footer={
+          <button className="btn-secondary" onClick={() => setAllOpen(false)}>
+            Schließen
+          </button>
+        }
+      >
+        {allLoading ? (
+          <div className="text-sm text-slate-500">Lade Einträge…</div>
+        ) : allError ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {allError}
+          </div>
+        ) : allEntries.length === 0 ? (
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
+            Es sind noch keine Einträge vorhanden.
+          </div>
+        ) : (
+          <ol className="space-y-3">
+            {allEntries.map((h) => (
+              <li
+                key={h.id}
+                className="relative rounded-2xl border border-slate-200 bg-slate-50 p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="text-sm font-semibold text-slate-900">
+                    {formatDate(h.date)}
+                  </div>
+                  <button
+                    onClick={() => startEdit(h)}
+                    aria-label="Bearbeiten"
+                    title="Bearbeiten"
+                    className="text-slate-400 hover:text-slate-700"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path d="M17.414 2.586a2 2 0 0 0-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 0 0 0-2.828z" />
+                      <path d="M2 15a1 1 0 0 0 1 1h3v-2H4v-2H2v3z" />
+                    </svg>
+                  </button>
+                </div>
+                <dl className="mt-2 grid gap-2 text-sm sm:grid-cols-3">
+                  <div>
+                    <dt className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                      Eintanzen
+                    </dt>
+                    <dd className="mt-0.5 text-slate-800">
+                      {h.warmup || "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                      Unterricht
+                    </dt>
+                    <dd className="mt-0.5 text-slate-800">
+                      {h.lesson || "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                      Austanzen
+                    </dt>
+                    <dd className="mt-0.5 text-slate-800">
+                      {h.cooldown || "—"}
+                    </dd>
+                  </div>
+                </dl>
+              </li>
+            ))}
+          </ol>
+        )}
       </Modal>
 
       <Modal

@@ -8,6 +8,7 @@ import FolgenPage from "./pages/FolgenPage.jsx";
 import HistoriePage from "./pages/HistoriePage.jsx";
 import HomePage from "./pages/HomePage.jsx";
 import LoginPage from "./pages/LoginPage.jsx";
+import NutzerPage from "./pages/NutzerPage.jsx";
 import WelcomePage from "./pages/WelcomePage.jsx";
 
 export default function App() {
@@ -27,6 +28,14 @@ export default function App() {
         <Route path="/folgen" element={<FolgenPage />} />
         <Route path="/historie" element={<HistoriePage />} />
         <Route path="/anwesenheit" element={<AnwesenheitPage />} />
+        <Route
+          path="/nutzer"
+          element={
+            <ProtectedRoute adminOnly>
+              <NutzerPage />
+            </ProtectedRoute>
+          }
+        />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

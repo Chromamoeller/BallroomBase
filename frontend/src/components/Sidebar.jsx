@@ -9,8 +9,11 @@ const NAV_ITEMS = [
   { to: "/anwesenheit", label: "Anwesenheitsliste" },
 ];
 
+const ADMIN_NAV_ITEMS = [{ to: "/nutzer", label: "Nutzer verwalten" }];
+
 export default function Sidebar() {
-  const { user, logout } = useAuth();
+  const { user, logout, isAdmin } = useAuth();
+  const items = isAdmin ? [...NAV_ITEMS, ...ADMIN_NAV_ITEMS] : NAV_ITEMS;
 
   return (
     <aside className="fixed left-0 top-0 z-20 flex h-screen w-72 flex-col border-r border-slate-200 bg-white shadow-card">
@@ -27,7 +30,7 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex-1 space-y-1 px-4 py-6">
-        {NAV_ITEMS.map((item) => (
+        {items.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}

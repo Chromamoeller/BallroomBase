@@ -19,8 +19,8 @@ export default function Modal({ open, onClose, title, children, footer }) {
         onClick={onClose}
         aria-hidden="true"
       />
-      <div className="relative w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
-        <div className="mb-4 flex items-start justify-between">
+      <div className="relative flex max-h-[85vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-start justify-between border-b border-slate-100 px-6 py-4">
           <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
           <button
             onClick={onClose}
@@ -32,8 +32,12 @@ export default function Modal({ open, onClose, title, children, footer }) {
             </svg>
           </button>
         </div>
-        <div>{children}</div>
-        {footer && <div className="mt-6 flex justify-end gap-2">{footer}</div>}
+        <div className="flex-1 overflow-y-auto px-6 py-4">{children}</div>
+        {footer && (
+          <div className="flex justify-end gap-2 border-t border-slate-100 px-6 py-4">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );
