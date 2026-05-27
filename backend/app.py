@@ -57,6 +57,9 @@ def auth_required(roles=None):
 
 
 # -------------------- AUTH --------------------
+@app.route("/")
+def health_check():
+    return "Backend läuft", 200
 
 @app.post("/api/login")
 def login():
