@@ -1,0 +1,14 @@
+.git
+.gitignore
+.venv
+**/.venv
+**/__pycache__
+**/*.pyc
+**/node_modules
+**/dist
+**/.vite
+**/*.db
+*.mp4
+README.md
+.env
+.env.local

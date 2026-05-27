@@ -2,10 +2,13 @@ import os
 import sqlite3
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "danceorga.db")
+DB_PATH = os.environ.get("DB_PATH") or os.path.join(BASE_DIR, "danceorga.db")
 
 
 def get_connection():
+    db_dir = os.path.dirname(DB_PATH)
+    if db_dir:
+        os.makedirs(db_dir, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")

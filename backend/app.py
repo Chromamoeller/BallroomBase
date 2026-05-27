@@ -10,8 +10,17 @@ from database import get_connection, init_db
 from seed import seed
 import os
 
-app = Flask(__name__)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+FRONTEND_DIST = os.environ.get(
+    "FRONTEND_DIST",
+    os.path.join(BASE_DIR, "..", "frontend", "dist"),
+)
+
+app = Flask(__name__, static_folder=FRONTEND_DIST, static_url_path="")
 CORS(app, supports_credentials=True)
+
+init_db()
+seed()
 
 # Einfache Token-Verwaltung im Speicher.
 # Reicht für eine lokale Demo; bei echter Mehrbenutzer-Nutzung
@@ -58,8 +67,8 @@ def auth_required(roles=None):
 
 # -------------------- AUTH --------------------
 @app.route("/")
-def health_check():
-    return "Backend läuft", 200
+def serve_index():
+    return app.send_static_file("index.html")
 
 @app.post("/api/login")
 def login():
@@ -961,7 +970,9 @@ def add_attendance(course_id):
 
 @app.errorhandler(404)
 def not_found(_):
-    return jsonify({"error": "Nicht gefunden"}), 404
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "Nicht gefunden"}), 404
+    return app.send_static_file("index.html")
 
 
 @app.errorhandler(500)
@@ -970,6 +981,4 @@ def server_error(_):
 
 
 if __name__ == "__main__":
-    init_db()
-    seed()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
