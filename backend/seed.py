@@ -899,11 +899,8 @@ def seed():
     dance_ids = {row["name"]: row["id"] for row in cur.fetchall()}
 
     for u in DEFAULT_USERS:
-        cur.execute("SELECT id FROM users WHERE username = ?", (u["username"],))
-        if cur.fetchone():
-            continue
         cur.execute(
-            "INSERT INTO users (username, password_hash, role, course_id) VALUES (?, ?, ?, ?)",
+            "INSERT OR IGNORE INTO users (username, password_hash, role, course_id) VALUES (?, ?, ?, ?)",
             (
                 u["username"],
                 generate_password_hash(u["password"]),
