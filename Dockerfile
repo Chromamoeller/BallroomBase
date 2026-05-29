@@ -26,4 +26,4 @@ ENV FRONTEND_DIST=/app/frontend/dist \
 
 EXPOSE 5000
 WORKDIR /app/backend
-CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT} --workers 2 --timeout 60 app:app"]
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT} --workers 1 --timeout 60 app:app"]
