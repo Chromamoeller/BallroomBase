@@ -107,6 +107,21 @@ export default function AnwesenheitPage() {
     }
   }
 
+  async function deleteEntry(entry) {
+    const confirmed = window.confirm(
+      `Soll der Anwesenheitstermin vom ${formatDate(entry.date)} wirklich gelöscht werden?`,
+    );
+    if (!confirmed) return;
+    setAllError(null);
+    try {
+      await api.deleteAttendance(user.courseId, entry.id);
+      setAllEntries((prev) => prev.filter((e) => e.id !== entry.id));
+      await load();
+    } catch (err) {
+      setAllError(err.message);
+    }
+  }
+
   function startEdit(entry) {
     const initial = {};
     const byUserId = new Map(entry.entries.map((e) => [e.userId, e]));
@@ -433,22 +448,43 @@ export default function AnwesenheitPage() {
                         {presentCount} von {entry.entries.length} anwesend
                       </div>
                     </div>
-                    <button
-                      onClick={() => startEdit(entry)}
-                      aria-label="Bearbeiten"
-                      title="Bearbeiten"
-                      className="text-slate-400 hover:text-slate-700"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-5 w-5"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => startEdit(entry)}
+                        aria-label="Bearbeiten"
+                        title="Bearbeiten"
+                        className="text-slate-400 hover:text-slate-700"
                       >
-                        <path d="M17.414 2.586a2 2 0 0 0-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 0 0 0-2.828z" />
-                        <path d="M2 15a1 1 0 0 0 1 1h3v-2H4v-2H2v3z" />
-                      </svg>
-                    </button>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-5 w-5"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                        >
+                          <path d="M17.414 2.586a2 2 0 0 0-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 0 0 0-2.828z" />
+                          <path d="M2 15a1 1 0 0 0 1 1h3v-2H4v-2H2v3z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => deleteEntry(entry)}
+                        aria-label="Löschen"
+                        title="Löschen"
+                        className="text-slate-400 hover:text-red-600"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-5 w-5"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M9 2a1 1 0 0 0-.894.553L7.382 4H4a1 1 0 0 0 0 2h.117l.764 10.7A2 2 0 0 0 6.877 18.5h6.246a2 2 0 0 0 1.996-1.8L15.883 6H16a1 1 0 1 0 0-2h-3.382l-.724-1.447A1 1 0 0 0 11 2H9zm-1 6a1 1 0 0 1 2 0v6a1 1 0 1 1-2 0V8zm4 0a1 1 0 1 1 2 0v6a1 1 0 1 1-2 0V8z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                   {entry.entries.length > 0 && (
                     <ul className="mt-3 grid gap-1 text-sm sm:grid-cols-2">

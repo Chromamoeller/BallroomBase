@@ -75,4 +75,6 @@ export const api = {
     }),
   addAttendance: (courseId, payload) =>
     request(`/attendance/${courseId}`, { method: "POST", body: payload }),
+  deleteAttendance: (courseId, attendanceId) =>
+    request(`/attendance/${courseId}/${attendanceId}`, { method: "DELETE" }),
 };

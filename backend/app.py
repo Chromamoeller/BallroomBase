@@ -919,6 +919,32 @@ def get_all_attendance(course_id):
         conn.close()
 
 
+@app.delete("/api/attendance/<int:course_id>/<int:attendance_id>")
+@auth_required(roles=["admin"])
+def delete_attendance(course_id, attendance_id):
+    conn = get_connection()
+    try:
+        existing = conn.execute(
+            "SELECT id FROM attendance WHERE id = ? AND course_id = ?",
+            (attendance_id, course_id),
+        ).fetchone()
+        if not existing:
+            return jsonify({"error": "Nicht gefunden"}), 404
+
+        conn.execute(
+            "DELETE FROM attendance_entries WHERE attendance_id = ?",
+            (attendance_id,),
+        )
+        conn.execute("DELETE FROM attendance WHERE id = ?", (attendance_id,))
+
+        _recompute_all_four_cards(conn, course_id)
+
+        conn.commit()
+        return jsonify({"ok": True})
+    finally:
+        conn.close()
+
+
 @app.post("/api/attendance/<int:course_id>")
 @auth_required(roles=["admin"])
 def add_attendance(course_id):
