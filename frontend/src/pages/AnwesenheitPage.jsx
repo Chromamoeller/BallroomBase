@@ -253,10 +253,10 @@ export default function AnwesenheitPage() {
           Für diesen Kurs sind keine Teilnehmer hinterlegt.
         </div>
       ) : (
-        <div className="card overflow-hidden">
-          <table className="w-full table-fixed divide-y divide-slate-200">
+        <div className="card overflow-x-auto">
+          <table className="w-full min-w-[480px] table-fixed divide-y divide-slate-200">
             <colgroup>
-              <col className="w-40" />
+              <col className="w-32 sm:w-40" />
               {data.dates.map((d) => (
                 <col key={d.id} />
               ))}
