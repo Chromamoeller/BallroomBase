@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { api } from "../api/client.js";
 import Modal from "../components/Modal.jsx";
@@ -34,6 +34,56 @@ export default function HistoriePage() {
   const [allEntries, setAllEntries] = useState([]);
   const [allLoading, setAllLoading] = useState(false);
   const [allError, setAllError] = useState(null);
+  const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null);
+  const fileInputRef = useRef(null);
+
+  async function handleExport() {
+    setExporting(true);
+    setError(null);
+    try {
+      const { blob, filename } = await api.exportHistory(user.courseId);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  function triggerImport() {
+    setImportResult(null);
+    setError(null);
+    fileInputRef.current?.click();
+  }
+
+  async function handleImportFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setImporting(true);
+    setError(null);
+    setImportResult(null);
+    try {
+      const result = await api.importHistory(user.courseId, file);
+      setImportResult(result);
+      if (result.created > 0) {
+        await load();
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setImporting(false);
+    }
+  }
 
   async function openAllEntries() {
     setAllOpen(true);
@@ -129,6 +179,61 @@ export default function HistoriePage() {
         action={
           isAdmin ? (
             <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleExport}
+                disabled={exporting}
+                className="inline-flex h-10 items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label="Historie als CSV exportieren"
+                title="Historie als CSV exportieren"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" />
+                </svg>
+                <span className="hidden sm:inline">
+                  {exporting ? "Export…" : "Export"}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={triggerImport}
+                disabled={importing}
+                className="inline-flex h-10 items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label="Historie aus CSV importieren"
+                title="Historie aus CSV importieren"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 21V9m0 0l-4 4m4-4l4 4M5 3h14" />
+                </svg>
+                <span className="hidden sm:inline">
+                  {importing ? "Import…" : "Import"}
+                </span>
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,text/csv"
+                className="hidden"
+                onChange={handleImportFile}
+              />
               <button className="btn-secondary" onClick={openAllEntries}>
                 Alle Einträge anzeigen
               </button>
@@ -146,6 +251,48 @@ export default function HistoriePage() {
           ) : null
         }
       />
+
+      {importResult && (
+        <div className="mb-4 space-y-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          <div className="flex items-center justify-between">
+            <div>
+              <strong>{importResult.created}</strong> Einträge importiert
+              {importResult.skipped?.length > 0 && (
+                <>
+                  , <strong>{importResult.skipped.length}</strong> übersprungen
+                  (Datum bereits vorhanden)
+                </>
+              )}
+              {importResult.errors?.length > 0 && (
+                <>
+                  , <strong>{importResult.errors.length}</strong> Fehler
+                </>
+              )}
+              .
+            </div>
+            <button
+              type="button"
+              onClick={() => setImportResult(null)}
+              className="text-emerald-700 hover:text-emerald-900"
+              aria-label="Schließen"
+            >
+              ×
+            </button>
+          </div>
+          {importResult.skipped?.length > 0 && (
+            <div className="text-xs text-emerald-700">
+              Übersprungen: {importResult.skipped.join(", ")}
+            </div>
+          )}
+          {importResult.errors?.length > 0 && (
+            <ul className="list-disc space-y-0.5 pl-5 text-xs text-red-700">
+              {importResult.errors.map((msg, i) => (
+                <li key={i}>{msg}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -168,7 +315,7 @@ export default function HistoriePage() {
                       setOpen(true);
                     }}
                     aria-label="Bearbeiten"
-                    className="text-slate-400 hover:text-slate-700"
+                    className="text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-200"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                       <path d="M17.414 2.586a2 2 0 0 0-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 0 0 0-2.828z" />
@@ -178,7 +325,7 @@ export default function HistoriePage() {
                   <button
                     onClick={() => setDeletingEntry(h)}
                     aria-label="Löschen"
-                    className="text-slate-400 hover:text-red-600"
+                    className="text-slate-400 hover:text-red-600 dark:text-slate-500 dark:hover:text-red-400"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M9 2a1 1 0 0 0-.894.553L7.382 4H4a1 1 0 0 0 0 2h12a1 1 0 1 0 0-2h-3.382l-.724-1.447A1 1 0 0 0 11 2H9zM5 8a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v8a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8zm3 2a1 1 0 0 1 2 0v5a1 1 0 1 1-2 0v-5zm4 0a1 1 0 1 1 2 0v5a1 1 0 1 1-2 0v-5z" clipRule="evenodd" />
@@ -187,31 +334,31 @@ export default function HistoriePage() {
                 </div>
               )}
 
-              <div className="text-xs font-semibold uppercase tracking-wider text-brand-600">
+              <div className="text-xs font-semibold uppercase tracking-wider text-brand-600 dark:text-brand-300">
                 Unterricht
               </div>
-              <div className="mt-1 text-sm font-semibold text-slate-900">
+              <div className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
                 {formatDate(h.date)}
               </div>
 
               <dl className="mt-4 space-y-3 text-sm">
                 <div>
-                  <dt className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                  <dt className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Eintanzen
                   </dt>
-                  <dd className="mt-0.5 text-slate-800">{h.warmup || "—"}</dd>
+                  <dd className="mt-0.5 text-slate-800 dark:text-slate-200">{h.warmup || "—"}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                  <dt className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Unterricht
                   </dt>
-                  <dd className="mt-0.5 text-slate-800">{h.lesson || "—"}</dd>
+                  <dd className="mt-0.5 text-slate-800 dark:text-slate-200">{h.lesson || "—"}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                  <dt className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Austanzen
                   </dt>
-                  <dd className="mt-0.5 text-slate-800">{h.cooldown || "—"}</dd>
+                  <dd className="mt-0.5 text-slate-800 dark:text-slate-200">{h.cooldown || "—"}</dd>
                 </div>
               </dl>
             </div>
@@ -219,7 +366,7 @@ export default function HistoriePage() {
           {placeholders.map((_, idx) => (
             <div
               key={`ph-${idx}`}
-              className="rounded-2xl border border-dashed border-slate-200 bg-white/50 p-5 text-sm text-slate-400"
+              className="rounded-2xl border border-dashed border-slate-200 bg-white/50 p-5 text-sm text-slate-400 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-500"
             >
               Noch kein Eintrag.
             </div>
@@ -309,7 +456,7 @@ export default function HistoriePage() {
             {allError}
           </div>
         ) : allEntries.length === 0 ? (
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
             Es sind noch keine Einträge vorhanden.
           </div>
         ) : (
@@ -317,17 +464,17 @@ export default function HistoriePage() {
             {allEntries.map((h) => (
               <li
                 key={h.id}
-                className="relative rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                className="relative rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900/40"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div className="text-sm font-semibold text-slate-900">
+                  <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                     {formatDate(h.date)}
                   </div>
                   <button
                     onClick={() => startEdit(h)}
                     aria-label="Bearbeiten"
                     title="Bearbeiten"
-                    className="text-slate-400 hover:text-slate-700"
+                    className="text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-200"
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
@@ -342,26 +489,26 @@ export default function HistoriePage() {
                 </div>
                 <dl className="mt-2 grid gap-2 text-sm sm:grid-cols-3">
                   <div>
-                    <dt className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                    <dt className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
                       Eintanzen
                     </dt>
-                    <dd className="mt-0.5 text-slate-800">
+                    <dd className="mt-0.5 text-slate-800 dark:text-slate-200">
                       {h.warmup || "—"}
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                    <dt className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
                       Unterricht
                     </dt>
-                    <dd className="mt-0.5 text-slate-800">
+                    <dd className="mt-0.5 text-slate-800 dark:text-slate-200">
                       {h.lesson || "—"}
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                    <dt className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
                       Austanzen
                     </dt>
-                    <dd className="mt-0.5 text-slate-800">
+                    <dd className="mt-0.5 text-slate-800 dark:text-slate-200">
                       {h.cooldown || "—"}
                     </dd>
                   </div>

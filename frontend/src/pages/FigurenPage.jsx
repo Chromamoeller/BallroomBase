@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { api } from "../api/client.js";
 import DanceTabs from "../components/DanceTabs.jsx";
@@ -32,9 +32,17 @@ export default function FigurenPage() {
     "Drehung rechts",
   ];
   const emptyStep = { foot: "", direction: "" };
+  const DIFFICULTY_OPTIONS = ["Leicht", "Mittel", "Schwer"];
   const emptyForm = {
     danceId: "",
     name: "",
+    description: "",
+    difficulty: "",
+    videoUrl: "",
+    spotifyUrl: "",
+    count: "",
+    footwork: "",
+    amountOfTurn: "",
     precedesRows: [""],
     followsRows: [""],
     stepRows: [{ ...emptyStep }],
@@ -43,6 +51,94 @@ export default function FigurenPage() {
   const [createError, setCreateError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null);
+  const [expandedFigures, setExpandedFigures] = useState(() => new Set());
+  const [copiedSpotifyId, setCopiedSpotifyId] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const copySpotifyLink = async (figureId, url) => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = url;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "absolute";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      setCopiedSpotifyId(figureId);
+      setTimeout(() => {
+        setCopiedSpotifyId((current) =>
+          current === figureId ? null : current,
+        );
+      }, 1500);
+    } catch (err) {
+      setError("Link konnte nicht kopiert werden: " + err.message);
+    }
+  };
+
+  const toggleFigureExpanded = (id) => {
+    setExpandedFigures((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  async function handleExport() {
+    setExporting(true);
+    setError(null);
+    try {
+      const { blob, filename } = await api.exportFigures(user.courseId);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  function triggerImport() {
+    setImportResult(null);
+    setError(null);
+    fileInputRef.current?.click();
+  }
+
+  async function handleImportFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setImporting(true);
+    setError(null);
+    setImportResult(null);
+    try {
+      const result = await api.importFigures(user.courseId, file);
+      setImportResult(result);
+      if (result.created > 0) {
+        const fresh = await api.figures(user.courseId);
+        setFigures(fresh);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setImporting(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -201,6 +297,13 @@ export default function FigurenPage() {
       const created = await api.addFigure(user.courseId, {
         danceId: Number(createForm.danceId),
         name: createForm.name.trim(),
+        description: createForm.description.trim(),
+        difficulty: createForm.difficulty.trim(),
+        videoUrl: createForm.videoUrl.trim(),
+        spotifyUrl: createForm.spotifyUrl.trim(),
+        count: createForm.count.trim(),
+        footwork: createForm.footwork.trim(),
+        amountOfTurn: createForm.amountOfTurn.trim(),
         precedes: buildRelationString(createForm.precedesRows),
         follows: buildRelationString(createForm.followsRows),
         steps: buildStepsString(createForm.stepRows),
@@ -240,29 +343,128 @@ export default function FigurenPage() {
         description="Übersicht aller Figuren deines Kurses, gruppiert nach Tanz."
         action={
           isAdmin ? (
-            <button
-              type="button"
-              onClick={openCreateModal}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-brand-600 text-white shadow-sm transition hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-2"
-              aria-label="Figur hinzufügen"
-              title="Figur hinzufügen"
-            >
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleExport}
+                disabled={exporting}
+                className="inline-flex h-10 items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label="Figuren als CSV exportieren"
+                title="Figuren als CSV exportieren"
               >
-                <path d="M12 5v14M5 12h14" />
-              </svg>
-            </button>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" />
+                </svg>
+                <span className="hidden sm:inline">
+                  {exporting ? "Export…" : "Export"}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={triggerImport}
+                disabled={importing}
+                className="inline-flex h-10 items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label="Figuren aus CSV importieren"
+                title="Figuren aus CSV importieren"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 21V9m0 0l-4 4m4-4l4 4M5 3h14" />
+                </svg>
+                <span className="hidden sm:inline">
+                  {importing ? "Import…" : "Import"}
+                </span>
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,text/csv"
+                className="hidden"
+                onChange={handleImportFile}
+              />
+              <button
+                type="button"
+                onClick={openCreateModal}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-brand-600 text-white shadow-sm transition hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-2"
+                aria-label="Figur hinzufügen"
+                title="Figur hinzufügen"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+              </button>
+            </div>
           ) : null
         }
       />
+
+      {importResult && (
+        <div className="mb-4 space-y-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          <div className="flex items-center justify-between">
+            <div>
+              <strong>{importResult.created}</strong> Figuren importiert
+              {importResult.skipped?.length > 0 && (
+                <>
+                  , <strong>{importResult.skipped.length}</strong> übersprungen
+                  (bereits vorhanden)
+                </>
+              )}
+              {importResult.errors?.length > 0 && (
+                <>
+                  , <strong>{importResult.errors.length}</strong> Fehler
+                </>
+              )}
+              .
+            </div>
+            <button
+              type="button"
+              onClick={() => setImportResult(null)}
+              className="text-emerald-700 hover:text-emerald-900"
+              aria-label="Schließen"
+            >
+              ×
+            </button>
+          </div>
+          {importResult.skipped?.length > 0 && (
+            <div className="text-xs text-emerald-700">
+              Übersprungen: {importResult.skipped.join(", ")}
+            </div>
+          )}
+          {importResult.errors?.length > 0 && (
+            <ul className="list-disc space-y-0.5 pl-5 text-xs text-red-700">
+              {importResult.errors.map((msg, i) => (
+                <li key={i}>{msg}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {loading ? (
         <div className="text-sm text-slate-500">Lade Figuren…</div>
@@ -291,83 +493,206 @@ export default function FigurenPage() {
           )}
 
           {visibleFigures.length === 0 ? (
-            <div className="card p-6 text-sm text-slate-500">
+            <div className="card p-6 text-sm text-slate-500 dark:text-slate-400">
               Für diesen Tanz sind noch keine Figuren hinterlegt.
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {visibleFigures.map((f) => (
-                <div key={f.id} className="card flex flex-col p-5">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <h3 className="text-base font-semibold text-slate-900">
-                        {f.name}
-                      </h3>
-                      {isAdmin && !f.visible && (
-                        <div className="mt-1 text-xs font-semibold uppercase tracking-wide text-rose-600">
-                          Ausgeblendet
+            <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {visibleFigures.map((f) => {
+                const isExpanded = expandedFigures.has(f.id);
+                return (
+                  <div key={f.id} className="card flex flex-col p-5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                          {f.name}
+                        </h3>
+                        {isAdmin && !f.visible && (
+                          <div className="mt-1 text-xs font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400">
+                            Ausgeblendet
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 text-sm text-slate-600 dark:text-slate-300">
+                      <div>
+                        <div className="font-medium text-slate-800 dark:text-slate-100">
+                          Schritte
+                        </div>
+                        <div>{f.steps || "Nicht angegeben"}</div>
+                      </div>
+                      {f.precedes && (
+                        <div>
+                          <div className="font-medium text-slate-800 dark:text-slate-100">
+                            Vorangehende Figuren
+                          </div>
+                          <div>{f.precedes}</div>
+                        </div>
+                      )}
+                      {f.follows && (
+                        <div>
+                          <div className="font-medium text-slate-800 dark:text-slate-100">
+                            Folgende Figuren
+                          </div>
+                          <div>{f.follows}</div>
                         </div>
                       )}
                     </div>
-                    {f.difficulty && (
-                      <span className="inline-flex items-center rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700">
-                        {f.difficulty}
-                      </span>
-                    )}
-                  </div>
 
-                  <div className="mt-4 grid gap-3 text-sm text-slate-600">
-                    <div>
-                      <div className="font-medium text-slate-800">Schritte</div>
-                      <div>{f.steps || "Nicht angegeben"}</div>
-                    </div>
-                    <div>
-                      <div className="font-medium text-slate-800">Count</div>
-                      <div>{f.count || "Nicht angegeben"}</div>
-                    </div>
-                    <div>
-                      <div className="font-medium text-slate-800">
-                        Fußarbeit
-                      </div>
-                      <div>{f.footwork || "Nicht angegeben"}</div>
-                    </div>
-                    <div>
-                      <div className="font-medium text-slate-800">Drehung</div>
-                      <div>{f.amountOfTurn || "Nicht angegeben"}</div>
-                    </div>
-                    {f.precedes && (
-                      <div>
-                        <div className="font-medium text-slate-800">
-                          Vorangehende Figuren
+                    {isExpanded && (
+                      <div className="mt-4 grid gap-3 border-t border-slate-100 pt-4 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">
+                        {f.difficulty && (
+                          <div>
+                            <div className="font-medium text-slate-800 dark:text-slate-100">
+                              Schwierigkeit
+                            </div>
+                            <span className="mt-1 inline-flex items-center rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-900/40 dark:text-brand-200">
+                              {f.difficulty}
+                            </span>
+                          </div>
+                        )}
+                        <div>
+                          <div className="font-medium text-slate-800 dark:text-slate-100">
+                            Count
+                          </div>
+                          <div>{f.count || "Nicht angegeben"}</div>
                         </div>
-                        <div>{f.precedes}</div>
-                      </div>
-                    )}
-                    {f.follows && (
-                      <div>
-                        <div className="font-medium text-slate-800">
-                          Folgende Figuren
+                        <div>
+                          <div className="font-medium text-slate-800 dark:text-slate-100">
+                            Fußarbeit
+                          </div>
+                          <div>{f.footwork || "Nicht angegeben"}</div>
                         </div>
-                        <div>{f.follows}</div>
+                        <div>
+                          <div className="font-medium text-slate-800 dark:text-slate-100">
+                            Drehung
+                          </div>
+                          <div>{f.amountOfTurn || "Nicht angegeben"}</div>
+                        </div>
+                        {f.description && (
+                          <div>
+                            <div className="font-medium text-slate-800 dark:text-slate-100">
+                              Beschreibung
+                            </div>
+                            <p>{f.description}</p>
+                          </div>
+                        )}
+                        {f.spotifyUrl && (
+                          <div>
+                            <div className="font-medium text-slate-800 dark:text-slate-100">
+                              Musik
+                            </div>
+                            <div className="mt-1 flex flex-wrap items-center gap-2">
+                              <a
+                                href={f.spotifyUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 rounded-full bg-[#1DB954] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#1aa34a] focus:outline-none focus:ring-2 focus:ring-[#1DB954] focus:ring-offset-2"
+                              >
+                                <svg
+                                  width="14"
+                                  height="14"
+                                  viewBox="0 0 24 24"
+                                  fill="currentColor"
+                                  aria-hidden="true"
+                                >
+                                  <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.5 17.32a.75.75 0 0 1-1.03.25c-2.83-1.73-6.4-2.12-10.6-1.16a.75.75 0 1 1-.33-1.46c4.6-1.05 8.55-.6 11.71 1.34.36.22.47.69.25 1.03zm1.47-3.27a.94.94 0 0 1-1.29.31c-3.24-1.99-8.18-2.57-12.01-1.4a.94.94 0 1 1-.54-1.79c4.39-1.34 9.84-.69 13.55 1.59.44.27.58.84.29 1.29zm.13-3.4c-3.88-2.31-10.29-2.52-14-1.39a1.12 1.12 0 1 1-.65-2.15c4.27-1.3 11.34-1.05 15.81 1.6a1.12 1.12 0 1 1-1.16 1.94z" />
+                                </svg>
+                                Auf Spotify öffnen
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  copySpotifyLink(f.id, f.spotifyUrl)
+                                }
+                                className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-2 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600 dark:focus:ring-offset-slate-800"
+                                aria-label="Spotify-Link kopieren"
+                              >
+                                {copiedSpotifyId === f.id ? (
+                                  <>
+                                    <svg
+                                      width="14"
+                                      height="14"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2.5"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      aria-hidden="true"
+                                    >
+                                      <polyline points="20 6 9 17 4 12" />
+                                    </svg>
+                                    Kopiert
+                                  </>
+                                ) : (
+                                  <>
+                                    <svg
+                                      width="14"
+                                      height="14"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      aria-hidden="true"
+                                    >
+                                      <rect
+                                        x="9"
+                                        y="9"
+                                        width="13"
+                                        height="13"
+                                        rx="2"
+                                        ry="2"
+                                      />
+                                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                                    </svg>
+                                    Link kopieren
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setSelectedVideoFigure(f)}
+                          className="btn-secondary mt-1 self-start"
+                        >
+                          Video abspielen
+                        </button>
                       </div>
                     )}
+
+                    <button
+                      type="button"
+                      onClick={() => toggleFigureExpanded(f.id)}
+                      aria-expanded={isExpanded}
+                      aria-label={
+                        isExpanded ? "Weniger anzeigen" : "Mehr anzeigen"
+                      }
+                      title={isExpanded ? "Weniger anzeigen" : "Mehr anzeigen"}
+                      className="mt-4 flex w-full items-center justify-center rounded-md py-1 text-slate-400 transition hover:bg-slate-50 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+                    >
+                      <svg
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className={`transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                      >
+                        <path d="M6 9l6 6 6-6" />
+                      </svg>
+                    </button>
                   </div>
-
-                  {f.description && (
-                    <p className="mt-4 text-sm text-slate-600">
-                      {f.description}
-                    </p>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={() => setSelectedVideoFigure(f)}
-                    className="btn-secondary mt-5 self-start"
-                  >
-                    Video abspielen
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
@@ -391,13 +716,13 @@ export default function FigurenPage() {
                   className="w-full rounded-2xl bg-slate-900"
                   src={selectedVideoFigure.videoUrl}
                 />
-                <p className="text-sm text-slate-600">
+                <p className="text-sm text-slate-600 dark:text-slate-300">
                   Falls das Video geladen wird, kannst du hier die Aufnahme
                   sehen.
                 </p>
               </div>
             ) : (
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
                 Dieses Video ist derzeit nicht verfügbar. Sobald ein Link
                 hinterlegt ist, kannst du es hier abspielen.
               </div>
@@ -463,6 +788,27 @@ export default function FigurenPage() {
                   placeholder="z.B. Damen-Solodrehung"
                   required
                 />
+              </div>
+
+              <div>
+                <label className="label" htmlFor="figure-difficulty">
+                  Schwierigkeit
+                </label>
+                <select
+                  id="figure-difficulty"
+                  className="input"
+                  value={createForm.difficulty}
+                  onChange={(e) =>
+                    updateCreateField("difficulty", e.target.value)
+                  }
+                >
+                  <option value="">Nicht angegeben</option>
+                  {DIFFICULTY_OPTIONS.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -716,6 +1062,101 @@ export default function FigurenPage() {
                     </div>
                   ))}
                 </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="label" htmlFor="figure-count">
+                    Count
+                  </label>
+                  <input
+                    id="figure-count"
+                    type="text"
+                    className="input"
+                    value={createForm.count}
+                    onChange={(e) => updateCreateField("count", e.target.value)}
+                    placeholder="z.B. 1 2 3 4 5 6"
+                  />
+                </div>
+                <div>
+                  <label className="label" htmlFor="figure-footwork">
+                    Fußarbeit
+                  </label>
+                  <input
+                    id="figure-footwork"
+                    type="text"
+                    className="input"
+                    value={createForm.footwork}
+                    onChange={(e) =>
+                      updateCreateField("footwork", e.target.value)
+                    }
+                    placeholder="z.B. Ballen, ganze Sohle"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="label" htmlFor="figure-turn">
+                  Drehung
+                </label>
+                <input
+                  id="figure-turn"
+                  type="text"
+                  className="input"
+                  value={createForm.amountOfTurn}
+                  onChange={(e) =>
+                    updateCreateField("amountOfTurn", e.target.value)
+                  }
+                  placeholder="z.B. 1/2 nach links"
+                />
+              </div>
+
+              <div>
+                <label className="label" htmlFor="figure-video">
+                  Video-URL
+                </label>
+                <input
+                  id="figure-video"
+                  type="url"
+                  className="input"
+                  value={createForm.videoUrl}
+                  onChange={(e) =>
+                    updateCreateField("videoUrl", e.target.value)
+                  }
+                  placeholder="https://…"
+                />
+              </div>
+
+              <div>
+                <label className="label" htmlFor="figure-spotify">
+                  Spotify-Link
+                </label>
+                <input
+                  id="figure-spotify"
+                  type="url"
+                  className="input"
+                  value={createForm.spotifyUrl}
+                  onChange={(e) =>
+                    updateCreateField("spotifyUrl", e.target.value)
+                  }
+                  placeholder="https://open.spotify.com/track/…"
+                />
+              </div>
+
+              <div>
+                <label className="label" htmlFor="figure-description">
+                  Beschreibung
+                </label>
+                <textarea
+                  id="figure-description"
+                  className="input"
+                  rows={3}
+                  value={createForm.description}
+                  onChange={(e) =>
+                    updateCreateField("description", e.target.value)
+                  }
+                  placeholder="Zusätzliche Hinweise oder Beschreibung der Figur"
+                />
               </div>
 
               {createError && (

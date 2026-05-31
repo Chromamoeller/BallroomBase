@@ -7,16 +7,16 @@ export default function Layout() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
       <Sidebar isOpen={menuOpen} onClose={() => setMenuOpen(false)} />
 
       {/* Mobile Top-Bar */}
-      <header className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 shadow-sm lg:hidden">
+      <header className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-800 lg:hidden">
         <button
           type="button"
           aria-label="Menü öffnen"
           onClick={() => setMenuOpen(true)}
-          className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+          className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
         >
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             <line x1="3" y1="6" x2="21" y2="6" />
@@ -24,7 +24,7 @@ export default function Layout() {
             <line x1="3" y1="18" x2="21" y2="18" />
           </svg>
         </button>
-        <div className="text-sm font-semibold uppercase tracking-widest text-brand-600">
+        <div className="text-sm font-semibold uppercase tracking-widest text-brand-600 dark:text-brand-300">
           DanceFans
         </div>
         <div className="w-10" />

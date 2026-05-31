@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS figures (
     description TEXT,
     difficulty TEXT,
     video_url TEXT,
+    spotify_url TEXT,
     steps TEXT,
     count_steps TEXT,
     footwork TEXT,
@@ -122,6 +123,7 @@ def init_db():
             ("precedes", "TEXT"),
             ("follows", "TEXT"),
             ("visible", "INTEGER NOT NULL DEFAULT 1"),
+            ("spotify_url", "TEXT"),
         ]:
             if column not in existing_fig_columns:
                 conn.execute(f"ALTER TABLE figures ADD COLUMN {column} {definition}")

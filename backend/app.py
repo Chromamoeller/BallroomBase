@@ -1,8 +1,10 @@
+import csv
+import io
 import secrets
 from datetime import datetime, timezone
 from functools import wraps
 
-from flask import Flask, jsonify, request
+from flask import Flask, Response, jsonify, request
 from flask_cors import CORS
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -288,6 +290,162 @@ def update_user(user_id):
         conn.close()
 
 
+USER_CSV_COLUMNS = ["username", "password", "role", "course", "has_four_card"]
+
+
+@app.get("/api/users/export")
+@auth_required(roles=["admin"])
+def export_users():
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT u.username, u.role, u.has_four_card, c.name AS course_name "
+            "FROM users u JOIN courses c ON c.id = u.course_id "
+            "ORDER BY u.username"
+        ).fetchall()
+    finally:
+        conn.close()
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(USER_CSV_COLUMNS)
+    for r in rows:
+        writer.writerow([
+            r["username"],
+            "",
+            r["role"],
+            r["course_name"],
+            "1" if r["has_four_card"] else "0",
+        ])
+
+    csv_text = "﻿" + buffer.getvalue()
+    filename = f"nutzer-export-{datetime.now().strftime('%Y%m%d-%H%M%S')}.csv"
+    return Response(
+        csv_text,
+        mimetype="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def _parse_bool(value):
+    if value is None:
+        return False
+    v = str(value).strip().lower()
+    return v in ("1", "true", "ja", "yes", "y", "x")
+
+
+@app.post("/api/users/import")
+@auth_required(roles=["admin"])
+def import_users():
+    upload = request.files.get("file")
+    if not upload:
+        return jsonify({"error": "Keine Datei hochgeladen"}), 400
+
+    try:
+        raw = upload.read().decode("utf-8-sig")
+    except UnicodeDecodeError:
+        try:
+            upload.stream.seek(0)
+            raw = upload.read().decode("latin-1")
+        except Exception:
+            return jsonify({"error": "Datei konnte nicht gelesen werden"}), 400
+
+    if not raw.strip():
+        return jsonify({"error": "Datei ist leer"}), 400
+
+    sample = raw[:2048]
+    try:
+        dialect = csv.Sniffer().sniff(sample, delimiters=",;\t|")
+    except csv.Error:
+        dialect = csv.excel
+
+    reader = csv.DictReader(io.StringIO(raw), dialect=dialect)
+    if not reader.fieldnames:
+        return jsonify({"error": "Keine Spaltenüberschriften gefunden"}), 400
+
+    fieldnames = {name.strip().lower(): name for name in reader.fieldnames if name}
+    required = ["username", "role", "course"]
+    missing = [c for c in required if c not in fieldnames]
+    if missing:
+        return jsonify({
+            "error": f"Fehlende Spalten: {', '.join(missing)}. "
+                     f"Erwartet: {', '.join(USER_CSV_COLUMNS)}"
+        }), 400
+
+    conn = get_connection()
+    try:
+        course_rows = conn.execute("SELECT id, name FROM courses").fetchall()
+        courses_by_name = {r["name"].strip().lower(): r["id"] for r in course_rows}
+
+        created = 0
+        skipped = []
+        errors = []
+
+        for idx, row in enumerate(reader, start=2):
+            def cell(key):
+                src = fieldnames.get(key)
+                if src is None:
+                    return ""
+                return (row.get(src) or "").strip()
+
+            username = cell("username")
+            password = cell("password")
+            role = cell("role").lower() or "teilnehmer"
+            course_name = cell("course")
+            has_four_card = 1 if _parse_bool(cell("has_four_card")) else 0
+
+            if not username:
+                errors.append(f"Zeile {idx}: Benutzername fehlt")
+                continue
+            if role not in ("admin", "teilnehmer"):
+                errors.append(f"Zeile {idx} ({username}): ungültige Rolle '{role}'")
+                continue
+            if not course_name:
+                errors.append(f"Zeile {idx} ({username}): Kurs fehlt")
+                continue
+            course_id = courses_by_name.get(course_name.lower())
+            if not course_id:
+                errors.append(
+                    f"Zeile {idx} ({username}): Kurs '{course_name}' nicht gefunden"
+                )
+                continue
+
+            existing = conn.execute(
+                "SELECT id FROM users WHERE username = ?", (username,)
+            ).fetchone()
+            if existing:
+                skipped.append(username)
+                continue
+
+            if not password:
+                errors.append(
+                    f"Zeile {idx} ({username}): Passwort erforderlich für neue Nutzer"
+                )
+                continue
+
+            conn.execute(
+                "INSERT INTO users (username, password_hash, role, course_id, has_four_card) "
+                "VALUES (?,?,?,?,?)",
+                (
+                    username,
+                    generate_password_hash(password),
+                    role,
+                    course_id,
+                    has_four_card,
+                ),
+            )
+            created += 1
+
+        conn.commit()
+        return jsonify({
+            "created": created,
+            "skipped": skipped,
+            "errors": errors,
+        })
+    finally:
+        conn.close()
+
+
 @app.delete("/api/users/<int:user_id>")
 @auth_required(roles=["admin"])
 def delete_user(user_id):
@@ -425,8 +583,8 @@ def get_figures(course_id):
         is_admin = request.current_user["role"] == "admin"
         query = (
             "SELECT f.id, f.name, f.description, f.difficulty, f.video_url, "
-            "f.steps, f.count_steps, f.footwork, f.amount_of_turn, "
-            "f.precedes, f.follows, f.visible, "
+            "f.spotify_url, f.steps, f.count_steps, f.footwork, "
+            "f.amount_of_turn, f.precedes, f.follows, f.visible, "
             "f.dance_id, d.name AS dance_name "
             "FROM figures f JOIN dances d ON d.id = f.dance_id "
             "WHERE f.course_id = ? "
@@ -441,6 +599,7 @@ def get_figures(course_id):
                 "description": r["description"],
                 "difficulty": r["difficulty"],
                 "videoUrl": r["video_url"],
+                "spotifyUrl": r["spotify_url"],
                 "steps": r["steps"],
                 "count": r["count_steps"],
                 "footwork": r["footwork"],
@@ -469,6 +628,7 @@ def create_figure(course_id):
     description = (data.get("description") or "").strip() or None
     difficulty = (data.get("difficulty") or "").strip() or None
     video_url = (data.get("videoUrl") or "").strip() or None
+    spotify_url = (data.get("spotifyUrl") or "").strip() or None
     steps = (data.get("steps") or "").strip() or None
     count_steps = (data.get("count") or "").strip() or None
     footwork = (data.get("footwork") or "").strip() or None
@@ -486,8 +646,9 @@ def create_figure(course_id):
 
         cur = conn.execute(
             "INSERT INTO figures (course_id, dance_id, name, description, difficulty, "
-            "video_url, steps, count_steps, footwork, amount_of_turn, precedes, follows, visible) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1)",
+            "video_url, spotify_url, steps, count_steps, footwork, amount_of_turn, "
+            "precedes, follows, visible) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1)",
             (
                 course_id,
                 dance_id,
@@ -495,6 +656,7 @@ def create_figure(course_id):
                 description,
                 difficulty,
                 video_url,
+                spotify_url,
                 steps,
                 count_steps,
                 footwork,
@@ -510,6 +672,7 @@ def create_figure(course_id):
             "description": description,
             "difficulty": difficulty,
             "videoUrl": video_url,
+            "spotifyUrl": spotify_url,
             "steps": steps,
             "count": count_steps,
             "footwork": footwork,
@@ -520,6 +683,194 @@ def create_figure(course_id):
             "danceId": dance["id"],
             "danceName": dance["name"],
         }), 201
+    finally:
+        conn.close()
+
+
+FIGURE_CSV_COLUMNS = [
+    "dance", "name", "description", "difficulty", "video_url", "spotify_url",
+    "steps", "count", "footwork", "amount_of_turn",
+    "precedes", "follows", "visible",
+]
+
+
+@app.get("/api/figures/<int:course_id>/export")
+@auth_required(roles=["admin"])
+def export_figures(course_id):
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT f.name, f.description, f.difficulty, f.video_url, "
+            "f.spotify_url, f.steps, f.count_steps, f.footwork, "
+            "f.amount_of_turn, f.precedes, f.follows, f.visible, "
+            "d.name AS dance_name "
+            "FROM figures f JOIN dances d ON d.id = f.dance_id "
+            "WHERE f.course_id = ? ORDER BY d.id, f.name",
+            (course_id,),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(FIGURE_CSV_COLUMNS)
+    for r in rows:
+        writer.writerow([
+            r["dance_name"],
+            r["name"],
+            r["description"] or "",
+            r["difficulty"] or "",
+            r["video_url"] or "",
+            r["spotify_url"] or "",
+            r["steps"] or "",
+            r["count_steps"] or "",
+            r["footwork"] or "",
+            r["amount_of_turn"] or "",
+            r["precedes"] or "",
+            r["follows"] or "",
+            "1" if r["visible"] else "0",
+        ])
+
+    csv_text = "﻿" + buffer.getvalue()
+    filename = f"figuren-export-{datetime.now().strftime('%Y%m%d-%H%M%S')}.csv"
+    return Response(
+        csv_text,
+        mimetype="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def _read_csv_upload(upload):
+    """Liest eine hochgeladene CSV-Datei. Gibt (reader, fieldnames_map) zurück
+    oder ein (None, error_response)-Tupel im Fehlerfall."""
+    try:
+        raw = upload.read().decode("utf-8-sig")
+    except UnicodeDecodeError:
+        try:
+            upload.stream.seek(0)
+            raw = upload.read().decode("latin-1")
+        except Exception:
+            return None, (jsonify({"error": "Datei konnte nicht gelesen werden"}), 400)
+
+    if not raw.strip():
+        return None, (jsonify({"error": "Datei ist leer"}), 400)
+
+    sample = raw[:2048]
+    try:
+        dialect = csv.Sniffer().sniff(sample, delimiters=",;\t|")
+    except csv.Error:
+        dialect = csv.excel
+
+    reader = csv.DictReader(io.StringIO(raw), dialect=dialect)
+    if not reader.fieldnames:
+        return None, (jsonify({"error": "Keine Spaltenüberschriften gefunden"}), 400)
+
+    fieldnames = {name.strip().lower(): name for name in reader.fieldnames if name}
+    return (reader, fieldnames), None
+
+
+@app.post("/api/figures/<int:course_id>/import")
+@auth_required(roles=["admin"])
+def import_figures(course_id):
+    upload = request.files.get("file")
+    if not upload:
+        return jsonify({"error": "Keine Datei hochgeladen"}), 400
+
+    parsed, err = _read_csv_upload(upload)
+    if err:
+        return err
+    reader, fieldnames = parsed
+
+    required = ["dance", "name"]
+    missing = [c for c in required if c not in fieldnames]
+    if missing:
+        return jsonify({
+            "error": f"Fehlende Spalten: {', '.join(missing)}. "
+                     f"Erwartet u.a.: {', '.join(FIGURE_CSV_COLUMNS)}"
+        }), 400
+
+    conn = get_connection()
+    try:
+        dance_rows = conn.execute("SELECT id, name FROM dances").fetchall()
+        dances_by_name = {r["name"].strip().lower(): r["id"] for r in dance_rows}
+
+        existing = conn.execute(
+            "SELECT f.name, d.name AS dance_name "
+            "FROM figures f JOIN dances d ON d.id = f.dance_id "
+            "WHERE f.course_id = ?",
+            (course_id,),
+        ).fetchall()
+        existing_keys = {
+            (r["dance_name"].strip().lower(), r["name"].strip().lower())
+            for r in existing
+        }
+
+        created = 0
+        skipped = []
+        errors = []
+
+        def cell(row, key):
+            src = fieldnames.get(key)
+            if src is None:
+                return ""
+            return (row.get(src) or "").strip()
+
+        for idx, row in enumerate(reader, start=2):
+            dance_name = cell(row, "dance")
+            name = cell(row, "name")
+
+            if not name:
+                errors.append(f"Zeile {idx}: Name fehlt")
+                continue
+            if not dance_name:
+                errors.append(f"Zeile {idx} ({name}): Tanz fehlt")
+                continue
+            dance_id = dances_by_name.get(dance_name.lower())
+            if not dance_id:
+                errors.append(
+                    f"Zeile {idx} ({name}): Tanz '{dance_name}' nicht gefunden"
+                )
+                continue
+
+            key = (dance_name.lower(), name.lower())
+            if key in existing_keys:
+                skipped.append(f"{name} ({dance_name})")
+                continue
+
+            visible_raw = cell(row, "visible")
+            visible = 1 if (not visible_raw or _parse_bool(visible_raw)) else 0
+
+            conn.execute(
+                "INSERT INTO figures (course_id, dance_id, name, description, "
+                "difficulty, video_url, spotify_url, steps, count_steps, "
+                "footwork, amount_of_turn, precedes, follows, visible) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    course_id,
+                    dance_id,
+                    name,
+                    cell(row, "description") or None,
+                    cell(row, "difficulty") or None,
+                    cell(row, "video_url") or None,
+                    cell(row, "spotify_url") or None,
+                    cell(row, "steps") or None,
+                    cell(row, "count") or None,
+                    cell(row, "footwork") or None,
+                    cell(row, "amount_of_turn") or None,
+                    cell(row, "precedes") or None,
+                    cell(row, "follows") or None,
+                    visible,
+                ),
+            )
+            existing_keys.add(key)
+            created += 1
+
+        conn.commit()
+        return jsonify({
+            "created": created,
+            "skipped": skipped,
+            "errors": errors,
+        })
     finally:
         conn.close()
 
@@ -579,6 +930,252 @@ def get_sequences(course_id):
             }
             for r in rows
         ])
+    finally:
+        conn.close()
+
+
+@app.post("/api/sequences/<int:course_id>")
+@auth_required(roles=["admin"])
+def create_sequence(course_id):
+    data = request.get_json(silent=True) or {}
+    dance_id = data.get("danceId")
+    name = (data.get("name") or "").strip()
+    if not dance_id or not name:
+        return jsonify({"error": "Tanz und Name sind erforderlich"}), 400
+
+    figures = (data.get("figures") or "").strip() or None
+    description = (data.get("description") or "").strip() or None
+
+    conn = get_connection()
+    try:
+        dance = conn.execute(
+            "SELECT id, name FROM dances WHERE id = ?", (dance_id,)
+        ).fetchone()
+        if not dance:
+            return jsonify({"error": "Tanz nicht gefunden"}), 400
+
+        cur = conn.execute(
+            "INSERT INTO sequences (course_id, dance_id, name, figures, "
+            "description, visible) VALUES (?,?,?,?,?,1)",
+            (course_id, dance_id, name, figures, description),
+        )
+        conn.commit()
+        return jsonify({
+            "id": cur.lastrowid,
+            "name": name,
+            "figures": figures,
+            "description": description,
+            "visible": True,
+            "danceId": dance["id"],
+            "danceName": dance["name"],
+        }), 201
+    finally:
+        conn.close()
+
+
+@app.put("/api/sequences/<int:course_id>/<int:sequence_id>")
+@auth_required(roles=["admin"])
+def update_sequence(course_id, sequence_id):
+    data = request.get_json(silent=True) or {}
+    dance_id = data.get("danceId")
+    name = (data.get("name") or "").strip()
+    if not dance_id or not name:
+        return jsonify({"error": "Tanz und Name sind erforderlich"}), 400
+
+    figures = (data.get("figures") or "").strip() or None
+    description = (data.get("description") or "").strip() or None
+
+    conn = get_connection()
+    try:
+        existing = conn.execute(
+            "SELECT id FROM sequences WHERE id = ? AND course_id = ?",
+            (sequence_id, course_id),
+        ).fetchone()
+        if not existing:
+            return jsonify({"error": "Folge nicht gefunden"}), 404
+
+        dance = conn.execute(
+            "SELECT id, name FROM dances WHERE id = ?", (dance_id,)
+        ).fetchone()
+        if not dance:
+            return jsonify({"error": "Tanz nicht gefunden"}), 400
+
+        conn.execute(
+            "UPDATE sequences SET dance_id = ?, name = ?, figures = ?, "
+            "description = ? WHERE id = ?",
+            (dance_id, name, figures, description, sequence_id),
+        )
+        conn.commit()
+
+        row = conn.execute(
+            "SELECT s.id, s.name, s.figures, s.description, s.visible, "
+            "s.dance_id, d.name AS dance_name "
+            "FROM sequences s JOIN dances d ON d.id = s.dance_id "
+            "WHERE s.id = ?",
+            (sequence_id,),
+        ).fetchone()
+        return jsonify({
+            "id": row["id"],
+            "name": row["name"],
+            "figures": row["figures"],
+            "description": row["description"],
+            "visible": bool(row["visible"]),
+            "danceId": row["dance_id"],
+            "danceName": row["dance_name"],
+        })
+    finally:
+        conn.close()
+
+
+@app.delete("/api/sequences/<int:course_id>/<int:sequence_id>")
+@auth_required(roles=["admin"])
+def delete_sequence(course_id, sequence_id):
+    conn = get_connection()
+    try:
+        existing = conn.execute(
+            "SELECT id FROM sequences WHERE id = ? AND course_id = ?",
+            (sequence_id, course_id),
+        ).fetchone()
+        if not existing:
+            return jsonify({"error": "Folge nicht gefunden"}), 404
+        conn.execute("DELETE FROM sequences WHERE id = ?", (sequence_id,))
+        conn.commit()
+        return jsonify({"ok": True})
+    finally:
+        conn.close()
+
+
+SEQUENCE_CSV_COLUMNS = ["dance", "name", "figures", "description", "visible"]
+
+
+@app.get("/api/sequences/<int:course_id>/export")
+@auth_required(roles=["admin"])
+def export_sequences(course_id):
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT s.name, s.figures, s.description, s.visible, "
+            "d.name AS dance_name "
+            "FROM sequences s JOIN dances d ON d.id = s.dance_id "
+            "WHERE s.course_id = ? ORDER BY d.id, s.name",
+            (course_id,),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(SEQUENCE_CSV_COLUMNS)
+    for r in rows:
+        writer.writerow([
+            r["dance_name"],
+            r["name"],
+            r["figures"] or "",
+            r["description"] or "",
+            "1" if r["visible"] else "0",
+        ])
+
+    csv_text = "﻿" + buffer.getvalue()
+    filename = f"folgen-export-{datetime.now().strftime('%Y%m%d-%H%M%S')}.csv"
+    return Response(
+        csv_text,
+        mimetype="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.post("/api/sequences/<int:course_id>/import")
+@auth_required(roles=["admin"])
+def import_sequences(course_id):
+    upload = request.files.get("file")
+    if not upload:
+        return jsonify({"error": "Keine Datei hochgeladen"}), 400
+
+    parsed, err = _read_csv_upload(upload)
+    if err:
+        return err
+    reader, fieldnames = parsed
+
+    required = ["dance", "name"]
+    missing = [c for c in required if c not in fieldnames]
+    if missing:
+        return jsonify({
+            "error": f"Fehlende Spalten: {', '.join(missing)}. "
+                     f"Erwartet: {', '.join(SEQUENCE_CSV_COLUMNS)}"
+        }), 400
+
+    conn = get_connection()
+    try:
+        dance_rows = conn.execute("SELECT id, name FROM dances").fetchall()
+        dances_by_name = {r["name"].strip().lower(): r["id"] for r in dance_rows}
+
+        existing = conn.execute(
+            "SELECT s.name, d.name AS dance_name "
+            "FROM sequences s JOIN dances d ON d.id = s.dance_id "
+            "WHERE s.course_id = ?",
+            (course_id,),
+        ).fetchall()
+        existing_keys = {
+            (r["dance_name"].strip().lower(), r["name"].strip().lower())
+            for r in existing
+        }
+
+        created = 0
+        skipped = []
+        errors = []
+
+        def cell(row, key):
+            src = fieldnames.get(key)
+            if src is None:
+                return ""
+            return (row.get(src) or "").strip()
+
+        for idx, row in enumerate(reader, start=2):
+            dance_name = cell(row, "dance")
+            name = cell(row, "name")
+
+            if not name:
+                errors.append(f"Zeile {idx}: Name fehlt")
+                continue
+            if not dance_name:
+                errors.append(f"Zeile {idx} ({name}): Tanz fehlt")
+                continue
+            dance_id = dances_by_name.get(dance_name.lower())
+            if not dance_id:
+                errors.append(
+                    f"Zeile {idx} ({name}): Tanz '{dance_name}' nicht gefunden"
+                )
+                continue
+
+            key = (dance_name.lower(), name.lower())
+            if key in existing_keys:
+                skipped.append(f"{name} ({dance_name})")
+                continue
+
+            visible_raw = cell(row, "visible")
+            visible = 1 if (not visible_raw or _parse_bool(visible_raw)) else 0
+
+            conn.execute(
+                "INSERT INTO sequences (course_id, dance_id, name, figures, "
+                "description, visible) VALUES (?,?,?,?,?,?)",
+                (
+                    course_id,
+                    dance_id,
+                    name,
+                    cell(row, "figures") or None,
+                    cell(row, "description") or None,
+                    visible,
+                ),
+            )
+            existing_keys.add(key)
+            created += 1
+
+        conn.commit()
+        return jsonify({
+            "created": created,
+            "skipped": skipped,
+            "errors": errors,
+        })
     finally:
         conn.close()
 
@@ -690,6 +1287,111 @@ def update_history(course_id, history_id):
         )
         conn.commit()
         return jsonify({"ok": True})
+    finally:
+        conn.close()
+
+
+HISTORY_CSV_COLUMNS = ["date", "warmup", "lesson", "cooldown"]
+
+
+@app.get("/api/history/<int:course_id>/export")
+@auth_required(roles=["admin"])
+def export_history(course_id):
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT date, warmup, lesson, cooldown FROM history "
+            "WHERE course_id = ? ORDER BY date ASC, id ASC",
+            (course_id,),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(HISTORY_CSV_COLUMNS)
+    for r in rows:
+        writer.writerow([
+            r["date"] or "",
+            r["warmup"] or "",
+            r["lesson"] or "",
+            r["cooldown"] or "",
+        ])
+
+    csv_text = "﻿" + buffer.getvalue()
+    filename = f"historie-export-{datetime.now().strftime('%Y%m%d-%H%M%S')}.csv"
+    return Response(
+        csv_text,
+        mimetype="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.post("/api/history/<int:course_id>/import")
+@auth_required(roles=["admin"])
+def import_history(course_id):
+    upload = request.files.get("file")
+    if not upload:
+        return jsonify({"error": "Keine Datei hochgeladen"}), 400
+
+    parsed, err = _read_csv_upload(upload)
+    if err:
+        return err
+    reader, fieldnames = parsed
+
+    if "date" not in fieldnames:
+        return jsonify({
+            "error": f"Fehlende Spalte: date. "
+                     f"Erwartet: {', '.join(HISTORY_CSV_COLUMNS)}"
+        }), 400
+
+    conn = get_connection()
+    try:
+        existing = conn.execute(
+            "SELECT date FROM history WHERE course_id = ?",
+            (course_id,),
+        ).fetchall()
+        existing_dates = {r["date"] for r in existing if r["date"]}
+
+        created = 0
+        skipped = []
+        errors = []
+
+        def cell(row, key):
+            src = fieldnames.get(key)
+            if src is None:
+                return ""
+            return (row.get(src) or "").strip()
+
+        for idx, row in enumerate(reader, start=2):
+            date = cell(row, "date")
+            if not date:
+                errors.append(f"Zeile {idx}: Datum fehlt")
+                continue
+            if date in existing_dates:
+                skipped.append(date)
+                continue
+
+            conn.execute(
+                "INSERT INTO history (course_id, date, warmup, lesson, cooldown) "
+                "VALUES (?,?,?,?,?)",
+                (
+                    course_id,
+                    date,
+                    cell(row, "warmup"),
+                    cell(row, "lesson"),
+                    cell(row, "cooldown"),
+                ),
+            )
+            existing_dates.add(date)
+            created += 1
+
+        conn.commit()
+        return jsonify({
+            "created": created,
+            "skipped": skipped,
+            "errors": errors,
+        })
     finally:
         conn.close()
 
@@ -915,6 +1617,145 @@ def get_all_attendance(course_id):
             }
             for d in date_rows
         ])
+    finally:
+        conn.close()
+
+
+ATTENDANCE_CSV_COLUMNS = ["date", "username", "present"]
+
+
+@app.get("/api/attendance/<int:course_id>/export")
+@auth_required(roles=["admin"])
+def export_attendance(course_id):
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT a.date, u.username, ae.present "
+            "FROM attendance_entries ae "
+            "JOIN attendance a ON a.id = ae.attendance_id "
+            "JOIN users u ON u.id = ae.user_id "
+            "WHERE a.course_id = ? "
+            "ORDER BY a.date ASC, a.id ASC, u.username ASC",
+            (course_id,),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(ATTENDANCE_CSV_COLUMNS)
+    for r in rows:
+        writer.writerow([
+            r["date"] or "",
+            r["username"],
+            "1" if r["present"] else "0",
+        ])
+
+    csv_text = "﻿" + buffer.getvalue()
+    filename = f"anwesenheit-export-{datetime.now().strftime('%Y%m%d-%H%M%S')}.csv"
+    return Response(
+        csv_text,
+        mimetype="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.post("/api/attendance/<int:course_id>/import")
+@auth_required(roles=["admin"])
+def import_attendance(course_id):
+    upload = request.files.get("file")
+    if not upload:
+        return jsonify({"error": "Keine Datei hochgeladen"}), 400
+
+    parsed, err = _read_csv_upload(upload)
+    if err:
+        return err
+    reader, fieldnames = parsed
+
+    required = ["date", "username", "present"]
+    missing = [c for c in required if c not in fieldnames]
+    if missing:
+        return jsonify({
+            "error": f"Fehlende Spalten: {', '.join(missing)}. "
+                     f"Erwartet: {', '.join(ATTENDANCE_CSV_COLUMNS)}"
+        }), 400
+
+    conn = get_connection()
+    try:
+        user_rows = conn.execute(
+            "SELECT id, username FROM users WHERE course_id = ?",
+            (course_id,),
+        ).fetchall()
+        users_by_name = {r["username"].strip().lower(): r["id"] for r in user_rows}
+
+        existing = conn.execute(
+            "SELECT date FROM attendance WHERE course_id = ?",
+            (course_id,),
+        ).fetchall()
+        existing_dates = {r["date"] for r in existing if r["date"]}
+
+        def cell(row, key):
+            src = fieldnames.get(key)
+            if src is None:
+                return ""
+            return (row.get(src) or "").strip()
+
+        # Gruppiere die Zeilen pro Datum, damit ein Termin atomar angelegt wird.
+        grouped: dict[str, list] = {}
+        row_errors = []
+        skipped_dates = []
+
+        for idx, row in enumerate(reader, start=2):
+            date = cell(row, "date")
+            username = cell(row, "username")
+            present_raw = cell(row, "present")
+
+            if not date:
+                row_errors.append(f"Zeile {idx}: Datum fehlt")
+                continue
+            if not username:
+                row_errors.append(f"Zeile {idx}: Benutzername fehlt")
+                continue
+            user_id = users_by_name.get(username.lower())
+            if not user_id:
+                row_errors.append(
+                    f"Zeile {idx} ({username}): Nutzer im Kurs nicht gefunden"
+                )
+                continue
+            if date in existing_dates:
+                if date not in skipped_dates:
+                    skipped_dates.append(date)
+                continue
+
+            grouped.setdefault(date, []).append({
+                "user_id": user_id,
+                "present": 1 if _parse_bool(present_raw) else 0,
+            })
+
+        created_dates = 0
+        for date, entries in grouped.items():
+            cur = conn.execute(
+                "INSERT INTO attendance (course_id, date) VALUES (?, ?)",
+                (course_id, date),
+            )
+            attendance_id = cur.lastrowid
+            for e in entries:
+                conn.execute(
+                    "INSERT INTO attendance_entries "
+                    "(attendance_id, user_id, present, hours) VALUES (?,?,?,?)",
+                    (attendance_id, e["user_id"], e["present"], None),
+                )
+            created_dates += 1
+
+        if created_dates > 0:
+            _recompute_all_four_cards(conn, course_id)
+
+        conn.commit()
+        return jsonify({
+            "created": created_dates,
+            "skipped": skipped_dates,
+            "errors": row_errors,
+        })
     finally:
         conn.close()
 

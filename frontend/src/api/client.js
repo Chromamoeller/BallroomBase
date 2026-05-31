@@ -25,6 +25,45 @@ async function request(path, { method = "GET", body, auth = true } = {}) {
   return data;
 }
 
+async function downloadCsv(path, fallbackFilename) {
+  const token = getToken();
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    let msg = `Fehler ${res.status}`;
+    try {
+      msg = JSON.parse(text)?.error || msg;
+    } catch {}
+    throw new Error(msg);
+  }
+  const blob = await res.blob();
+  const disposition = res.headers.get("Content-Disposition") || "";
+  const match = disposition.match(/filename="?([^";]+)"?/i);
+  const filename = match ? match[1] : fallbackFilename;
+  return { blob, filename };
+}
+
+async function uploadCsv(path, file) {
+  const token = getToken();
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : null;
+  if (!res.ok) {
+    const error = new Error(data?.error || `Fehler ${res.status}`);
+    error.status = res.status;
+    throw error;
+  }
+  return data;
+}
+
 export const api = {
   login: (username, password) =>
     request("/login", {
@@ -42,11 +81,35 @@ export const api = {
     request(`/users/${userId}`, { method: "PUT", body: payload }),
   deleteUser: (userId) =>
     request(`/users/${userId}`, { method: "DELETE" }),
+  exportUsers: () => downloadCsv("/users/export", "nutzer-export.csv"),
+  importUsers: (file) => uploadCsv("/users/import", file),
+  exportFigures: (courseId) =>
+    downloadCsv(`/figures/${courseId}/export`, "figuren-export.csv"),
+  importFigures: (courseId, file) =>
+    uploadCsv(`/figures/${courseId}/import`, file),
+  exportSequences: (courseId) =>
+    downloadCsv(`/sequences/${courseId}/export`, "folgen-export.csv"),
+  importSequences: (courseId, file) =>
+    uploadCsv(`/sequences/${courseId}/import`, file),
+  exportHistory: (courseId) =>
+    downloadCsv(`/history/${courseId}/export`, "historie-export.csv"),
+  importHistory: (courseId, file) =>
+    uploadCsv(`/history/${courseId}/import`, file),
+  exportAttendance: (courseId) =>
+    downloadCsv(`/attendance/${courseId}/export`, "anwesenheit-export.csv"),
+  importAttendance: (courseId, file) =>
+    uploadCsv(`/attendance/${courseId}/import`, file),
   dances: () => request("/dances", { auth: false }),
   figures: (courseId) => request(`/figures/${courseId}`),
   addFigure: (courseId, payload) =>
     request(`/figures/${courseId}`, { method: "POST", body: payload }),
   sequences: (courseId) => request(`/sequences/${courseId}`),
+  addSequence: (courseId, payload) =>
+    request(`/sequences/${courseId}`, { method: "POST", body: payload }),
+  updateSequence: (courseId, id, payload) =>
+    request(`/sequences/${courseId}/${id}`, { method: "PUT", body: payload }),
+  deleteSequence: (courseId, id) =>
+    request(`/sequences/${courseId}/${id}`, { method: "DELETE" }),
   updateFigureVisibility: (courseId, items) =>
     request(`/figures/${courseId}/visibility`, {
       method: "PUT",
