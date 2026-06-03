@@ -129,6 +129,37 @@ def me():
     })
 
 
+@app.post("/api/change-password")
+@auth_required()
+def change_password():
+    data = request.get_json(silent=True) or {}
+    current_password = data.get("currentPassword") or ""
+    new_password = data.get("newPassword") or ""
+
+    if not current_password or not new_password:
+        return jsonify({"error": "Aktuelles und neues Passwort erforderlich"}), 400
+    if len(new_password) < 4:
+        return jsonify({"error": "Neues Passwort muss mindestens 4 Zeichen lang sein"}), 400
+
+    user_id = request.current_user["id"]
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT password_hash FROM users WHERE id = ?", (user_id,)
+        ).fetchone()
+        if not row or not check_password_hash(row["password_hash"], current_password):
+            return jsonify({"error": "Aktuelles Passwort ist falsch"}), 400
+
+        conn.execute(
+            "UPDATE users SET password_hash = ? WHERE id = ?",
+            (generate_password_hash(new_password), user_id),
+        )
+        conn.commit()
+        return jsonify({"ok": True})
+    finally:
+        conn.close()
+
+
 # -------------------- USERS --------------------
 
 @app.get("/api/users")
