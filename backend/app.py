@@ -290,7 +290,17 @@ def update_user(user_id):
         conn.close()
 
 
-USER_CSV_COLUMNS = ["username", "password", "role", "course", "has_four_card"]
+USER_CSV_COLUMNS = [
+    "username",
+    "password",
+    "password_hash",
+    "role",
+    "course",
+    "has_four_card",
+    "four_card_hours",
+    "four_card_wraps",
+    "four_card_paid_at",
+]
 
 
 @app.get("/api/users/export")
@@ -299,7 +309,9 @@ def export_users():
     conn = get_connection()
     try:
         rows = conn.execute(
-            "SELECT u.username, u.role, u.has_four_card, c.name AS course_name "
+            "SELECT u.username, u.password_hash, u.role, u.has_four_card, "
+            "u.four_card_hours, u.four_card_wraps, u.four_card_paid_at, "
+            "c.name AS course_name "
             "FROM users u JOIN courses c ON c.id = u.course_id "
             "ORDER BY u.username"
         ).fetchall()
@@ -313,9 +325,13 @@ def export_users():
         writer.writerow([
             r["username"],
             "",
+            r["password_hash"],
             r["role"],
             r["course_name"],
             "1" if r["has_four_card"] else "0",
+            r["four_card_hours"] if r["four_card_hours"] is not None else 0,
+            r["four_card_wraps"] if r["four_card_wraps"] is not None else 0,
+            r["four_card_paid_at"] or "",
         ])
 
     csv_text = "﻿" + buffer.getvalue()
@@ -390,9 +406,23 @@ def import_users():
 
             username = cell("username")
             password = cell("password")
+            password_hash = cell("password_hash")
             role = cell("role").lower() or "teilnehmer"
             course_name = cell("course")
             has_four_card = 1 if _parse_bool(cell("has_four_card")) else 0
+
+            def cell_int(key):
+                raw = cell(key)
+                if not raw:
+                    return 0
+                try:
+                    return max(0, int(raw))
+                except ValueError:
+                    return 0
+
+            four_card_hours = cell_int("four_card_hours")
+            four_card_wraps = cell_int("four_card_wraps")
+            four_card_paid_at = cell("four_card_paid_at") or None
 
             if not username:
                 errors.append(f"Zeile {idx}: Benutzername fehlt")
@@ -417,21 +447,29 @@ def import_users():
                 skipped.append(username)
                 continue
 
-            if not password:
+            if password_hash:
+                hash_to_store = password_hash
+            elif password:
+                hash_to_store = generate_password_hash(password)
+            else:
                 errors.append(
-                    f"Zeile {idx} ({username}): Passwort erforderlich für neue Nutzer"
+                    f"Zeile {idx} ({username}): Passwort oder password_hash erforderlich für neue Nutzer"
                 )
                 continue
 
             conn.execute(
-                "INSERT INTO users (username, password_hash, role, course_id, has_four_card) "
-                "VALUES (?,?,?,?,?)",
+                "INSERT INTO users (username, password_hash, role, course_id, has_four_card, "
+                "four_card_hours, four_card_wraps, four_card_paid_at) "
+                "VALUES (?,?,?,?,?,?,?,?)",
                 (
                     username,
-                    generate_password_hash(password),
+                    hash_to_store,
                     role,
                     course_id,
                     has_four_card,
+                    four_card_hours,
+                    four_card_wraps,
+                    four_card_paid_at,
                 ),
             )
             created += 1
@@ -464,6 +502,12 @@ def delete_user(user_id):
             "DELETE FROM attendance_entries WHERE user_id = ?", (user_id,)
         )
         conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        conn.execute(
+            "DELETE FROM attendance WHERE id IN ("
+            "SELECT a.id FROM attendance a "
+            "LEFT JOIN attendance_entries ae ON ae.attendance_id = a.id "
+            "WHERE ae.id IS NULL)"
+        )
         conn.commit()
         return jsonify({"ok": True})
     finally:
@@ -683,6 +727,113 @@ def create_figure(course_id):
             "danceId": dance["id"],
             "danceName": dance["name"],
         }), 201
+    finally:
+        conn.close()
+
+
+@app.put("/api/figures/<int:course_id>/<int:figure_id>")
+@auth_required(roles=["admin"])
+def update_figure(course_id, figure_id):
+    data = request.get_json(silent=True) or {}
+    dance_id = data.get("danceId")
+    name = (data.get("name") or "").strip()
+    if not dance_id or not name:
+        return jsonify({"error": "Tanz und Name sind erforderlich"}), 400
+
+    description = (data.get("description") or "").strip() or None
+    difficulty = (data.get("difficulty") or "").strip() or None
+    video_url = (data.get("videoUrl") or "").strip() or None
+    spotify_url = (data.get("spotifyUrl") or "").strip() or None
+    steps = (data.get("steps") or "").strip() or None
+    count_steps = (data.get("count") or "").strip() or None
+    footwork = (data.get("footwork") or "").strip() or None
+    amount_of_turn = (data.get("amountOfTurn") or "").strip() or None
+    precedes = (data.get("precedes") or "").strip() or None
+    follows = (data.get("follows") or "").strip() or None
+
+    conn = get_connection()
+    try:
+        existing = conn.execute(
+            "SELECT id FROM figures WHERE id = ? AND course_id = ?",
+            (figure_id, course_id),
+        ).fetchone()
+        if not existing:
+            return jsonify({"error": "Figur nicht gefunden"}), 404
+
+        dance = conn.execute(
+            "SELECT id, name FROM dances WHERE id = ?", (dance_id,)
+        ).fetchone()
+        if not dance:
+            return jsonify({"error": "Tanz nicht gefunden"}), 400
+
+        conn.execute(
+            "UPDATE figures SET dance_id = ?, name = ?, description = ?, "
+            "difficulty = ?, video_url = ?, spotify_url = ?, steps = ?, "
+            "count_steps = ?, footwork = ?, amount_of_turn = ?, "
+            "precedes = ?, follows = ? WHERE id = ?",
+            (
+                dance_id,
+                name,
+                description,
+                difficulty,
+                video_url,
+                spotify_url,
+                steps,
+                count_steps,
+                footwork,
+                amount_of_turn,
+                precedes,
+                follows,
+                figure_id,
+            ),
+        )
+        conn.commit()
+
+        row = conn.execute(
+            "SELECT f.id, f.name, f.description, f.difficulty, f.video_url, "
+            "f.spotify_url, f.steps, f.count_steps, f.footwork, "
+            "f.amount_of_turn, f.precedes, f.follows, f.visible, "
+            "f.dance_id, d.name AS dance_name "
+            "FROM figures f JOIN dances d ON d.id = f.dance_id "
+            "WHERE f.id = ?",
+            (figure_id,),
+        ).fetchone()
+        return jsonify({
+            "id": row["id"],
+            "name": row["name"],
+            "description": row["description"],
+            "difficulty": row["difficulty"],
+            "videoUrl": row["video_url"],
+            "spotifyUrl": row["spotify_url"],
+            "steps": row["steps"],
+            "count": row["count_steps"],
+            "footwork": row["footwork"],
+            "amountOfTurn": row["amount_of_turn"],
+            "precedes": row["precedes"],
+            "follows": row["follows"],
+            "visible": bool(row["visible"]),
+            "danceId": row["dance_id"],
+            "danceName": row["dance_name"],
+        })
+    finally:
+        conn.close()
+
+
+@app.delete("/api/figures/<int:course_id>/<int:figure_id>")
+@auth_required(roles=["admin"])
+def delete_figure(course_id, figure_id):
+    conn = get_connection()
+    try:
+        existing = conn.execute(
+            "SELECT id FROM figures WHERE id = ? AND course_id = ?",
+            (figure_id, course_id),
+        ).fetchone()
+        if not existing:
+            return jsonify({"error": "Figur nicht gefunden"}), 404
+
+        conn.execute("DELETE FROM figures WHERE id = ?", (figure_id,))
+        conn.commit()
+        return jsonify({"ok": True})
     finally:
         conn.close()
 
@@ -1689,10 +1840,10 @@ def import_attendance(course_id):
         users_by_name = {r["username"].strip().lower(): r["id"] for r in user_rows}
 
         existing = conn.execute(
-            "SELECT date FROM attendance WHERE course_id = ?",
+            "SELECT id, date FROM attendance WHERE course_id = ?",
             (course_id,),
         ).fetchall()
-        existing_dates = {r["date"] for r in existing if r["date"]}
+        existing_dates = {r["date"]: r["id"] for r in existing if r["date"]}
 
         def cell(row, key):
             src = fieldnames.get(key)
@@ -1700,10 +1851,8 @@ def import_attendance(course_id):
                 return ""
             return (row.get(src) or "").strip()
 
-        # Gruppiere die Zeilen pro Datum, damit ein Termin atomar angelegt wird.
         grouped: dict[str, list] = {}
         row_errors = []
-        skipped_dates = []
 
         for idx, row in enumerate(reader, start=2):
             date = cell(row, "date")
@@ -1722,10 +1871,6 @@ def import_attendance(course_id):
                     f"Zeile {idx} ({username}): Nutzer im Kurs nicht gefunden"
                 )
                 continue
-            if date in existing_dates:
-                if date not in skipped_dates:
-                    skipped_dates.append(date)
-                continue
 
             grouped.setdefault(date, []).append({
                 "user_id": user_id,
@@ -1733,27 +1878,54 @@ def import_attendance(course_id):
             })
 
         created_dates = 0
+        updated_dates = []
+        entries_added = 0
+        entries_skipped = 0
+
         for date, entries in grouped.items():
-            cur = conn.execute(
-                "INSERT INTO attendance (course_id, date) VALUES (?, ?)",
-                (course_id, date),
-            )
-            attendance_id = cur.lastrowid
+            attendance_id = existing_dates.get(date)
+            if attendance_id is None:
+                cur = conn.execute(
+                    "INSERT INTO attendance (course_id, date) VALUES (?, ?)",
+                    (course_id, date),
+                )
+                attendance_id = cur.lastrowid
+                created_dates += 1
+                existing_user_ids = set()
+            else:
+                existing_entries = conn.execute(
+                    "SELECT user_id FROM attendance_entries WHERE attendance_id = ?",
+                    (attendance_id,),
+                ).fetchall()
+                existing_user_ids = {r["user_id"] for r in existing_entries}
+
+            added_here = 0
             for e in entries:
+                if e["user_id"] in existing_user_ids:
+                    entries_skipped += 1
+                    continue
                 conn.execute(
                     "INSERT INTO attendance_entries "
                     "(attendance_id, user_id, present, hours) VALUES (?,?,?,?)",
                     (attendance_id, e["user_id"], e["present"], None),
                 )
-            created_dates += 1
+                existing_user_ids.add(e["user_id"])
+                entries_added += 1
+                added_here += 1
 
-        if created_dates > 0:
+            if added_here > 0 and date in existing_dates:
+                updated_dates.append(date)
+
+        if entries_added > 0:
             _recompute_all_four_cards(conn, course_id)
 
         conn.commit()
         return jsonify({
             "created": created_dates,
-            "skipped": skipped_dates,
+            "updated": updated_dates,
+            "entriesAdded": entries_added,
+            "entriesSkipped": entries_skipped,
+            "skipped": [],
             "errors": row_errors,
         })
     finally:

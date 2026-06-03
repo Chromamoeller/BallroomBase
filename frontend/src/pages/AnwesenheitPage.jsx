@@ -72,7 +72,7 @@ export default function AnwesenheitPage() {
     try {
       const result = await api.importAttendance(user.courseId, file);
       setImportResult(result);
-      if (result.created > 0) {
+      if (result.created > 0 || result.entriesAdded > 0) {
         await load();
       }
     } catch (err) {
@@ -314,10 +314,23 @@ export default function AnwesenheitPage() {
           <div className="flex items-center justify-between">
             <div>
               <strong>{importResult.created}</strong> Termine importiert
-              {importResult.skipped?.length > 0 && (
+              {importResult.updated?.length > 0 && (
                 <>
-                  , <strong>{importResult.skipped.length}</strong> übersprungen
-                  (Datum bereits vorhanden)
+                  , <strong>{importResult.updated.length}</strong> bestehende
+                  Termine ergänzt
+                </>
+              )}
+              {importResult.entriesAdded > 0 && (
+                <>
+                  {" "}
+                  (<strong>{importResult.entriesAdded}</strong> Einträge
+                  hinzugefügt)
+                </>
+              )}
+              {importResult.entriesSkipped > 0 && (
+                <>
+                  , <strong>{importResult.entriesSkipped}</strong> Einträge
+                  übersprungen (bereits vorhanden)
                 </>
               )}
               {importResult.errors?.length > 0 && (
@@ -336,9 +349,9 @@ export default function AnwesenheitPage() {
               ×
             </button>
           </div>
-          {importResult.skipped?.length > 0 && (
+          {importResult.updated?.length > 0 && (
             <div className="text-xs text-emerald-700">
-              Übersprungen: {importResult.skipped.join(", ")}
+              Ergänzt: {importResult.updated.join(", ")}
             </div>
           )}
           {importResult.errors?.length > 0 && (

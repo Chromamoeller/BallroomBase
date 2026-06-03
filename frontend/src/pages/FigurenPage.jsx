@@ -49,6 +49,9 @@ export default function FigurenPage() {
   };
   const [createForm, setCreateForm] = useState(emptyForm);
   const [createError, setCreateError] = useState(null);
+  const [editingFigureId, setEditingFigureId] = useState(null);
+  const [deletingFigure, setDeletingFigure] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [exporting, setExporting] = useState(false);
@@ -201,6 +204,50 @@ export default function FigurenPage() {
       danceId: activeDance ? String(activeDance) : "",
     });
     setCreateError(null);
+    setEditingFigureId(null);
+    setCreateModalOpen(true);
+  };
+
+  const parseRelationString = (str) => {
+    if (!str) return [""];
+    const parts = str.split(",").map((p) => p.trim()).filter(Boolean);
+    return parts.length > 0 ? parts : [""];
+  };
+
+  const parseStepsString = (str) => {
+    if (!str) return [{ ...emptyStep }];
+    const parts = str.split(",").map((p) => p.trim()).filter(Boolean);
+    if (parts.length === 0) return [{ ...emptyStep }];
+    return parts.map((part) => {
+      const noNum = part.replace(/^\d+\.\s*/, "");
+      const matchedFoot = FOOT_OPTIONS.find((f) => noNum.startsWith(f));
+      if (matchedFoot) {
+        return {
+          foot: matchedFoot,
+          direction: noNum.slice(matchedFoot.length).trim(),
+        };
+      }
+      return { foot: "", direction: noNum };
+    });
+  };
+
+  const openEditModal = (figure) => {
+    setCreateForm({
+      danceId: figure.danceId ? String(figure.danceId) : "",
+      name: figure.name || "",
+      description: figure.description || "",
+      difficulty: figure.difficulty || "",
+      videoUrl: figure.videoUrl || "",
+      spotifyUrl: figure.spotifyUrl || "",
+      count: figure.count || "",
+      footwork: figure.footwork || "",
+      amountOfTurn: figure.amountOfTurn || "",
+      precedesRows: parseRelationString(figure.precedes),
+      followsRows: parseRelationString(figure.follows),
+      stepRows: parseStepsString(figure.steps),
+    });
+    setCreateError(null);
+    setEditingFigureId(figure.id);
     setCreateModalOpen(true);
   };
 
@@ -294,7 +341,7 @@ export default function FigurenPage() {
     setCreateSaving(true);
     setCreateError(null);
     try {
-      const created = await api.addFigure(user.courseId, {
+      const payload = {
         danceId: Number(createForm.danceId),
         name: createForm.name.trim(),
         description: createForm.description.trim(),
@@ -307,14 +354,46 @@ export default function FigurenPage() {
         precedes: buildRelationString(createForm.precedesRows),
         follows: buildRelationString(createForm.followsRows),
         steps: buildStepsString(createForm.stepRows),
-      });
-      setFigures((current) => [...current, created]);
-      setActiveDance(created.danceId);
+      };
+      if (editingFigureId != null) {
+        const updated = await api.updateFigure(
+          user.courseId,
+          editingFigureId,
+          payload,
+        );
+        setFigures((current) =>
+          current.map((f) =>
+            f.id === editingFigureId ? { ...f, ...updated } : f,
+          ),
+        );
+        setActiveDance(updated.danceId);
+      } else {
+        const created = await api.addFigure(user.courseId, payload);
+        setFigures((current) => [...current, created]);
+        setActiveDance(created.danceId);
+      }
       setCreateModalOpen(false);
+      setEditingFigureId(null);
     } catch (err) {
       setCreateError(err.message);
     } finally {
       setCreateSaving(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deletingFigure) return;
+    setDeleting(true);
+    try {
+      await api.deleteFigure(user.courseId, deletingFigure.id);
+      setFigures((current) =>
+        current.filter((f) => f.id !== deletingFigure.id),
+      );
+      setDeletingFigure(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -513,6 +592,47 @@ export default function FigurenPage() {
                           </div>
                         )}
                       </div>
+                      {isAdmin && (
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(f)}
+                            aria-label="Bearbeiten"
+                            title="Bearbeiten"
+                            className="text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-200"
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-5 w-5"
+                              viewBox="0 0 20 20"
+                              fill="currentColor"
+                            >
+                              <path d="M17.414 2.586a2 2 0 0 0-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 0 0 0-2.828z" />
+                              <path d="M2 15a1 1 0 0 0 1 1h3v-2H4v-2H2v3z" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeletingFigure(f)}
+                            aria-label="Löschen"
+                            title="Löschen"
+                            className="text-slate-400 hover:text-red-600 dark:text-slate-500 dark:hover:text-red-400"
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-5 w-5"
+                              viewBox="0 0 20 20"
+                              fill="currentColor"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M9 2a1 1 0 0 0-.894.553L7.382 4H4a1 1 0 0 0 0 2h12a1 1 0 1 0 0-2h-3.382l-.724-1.447A1 1 0 0 0 11 2H9zM5 8a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v8a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8zm3 2a1 1 0 0 1 2 0v5a1 1 0 1 1-2 0v-5zm4 0a1 1 0 1 1 2 0v5a1 1 0 1 1-2 0v-5z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     <div className="mt-4 grid gap-3 text-sm text-slate-600 dark:text-slate-300">
@@ -731,13 +851,24 @@ export default function FigurenPage() {
 
           <Modal
             open={createModalOpen}
-            onClose={() => (createSaving ? null : setCreateModalOpen(false))}
-            title="Neue Figur hinzufügen"
+            onClose={() => {
+              if (createSaving) return;
+              setCreateModalOpen(false);
+              setEditingFigureId(null);
+            }}
+            title={
+              editingFigureId != null
+                ? "Figur bearbeiten"
+                : "Neue Figur hinzufügen"
+            }
             footer={
               <>
                 <button
                   type="button"
-                  onClick={() => setCreateModalOpen(false)}
+                  onClick={() => {
+                    setCreateModalOpen(false);
+                    setEditingFigureId(null);
+                  }}
                   disabled={createSaving}
                   className="btn-secondary"
                 >
@@ -1166,6 +1297,37 @@ export default function FigurenPage() {
               )}
               <button type="submit" className="hidden" aria-hidden="true" />
             </form>
+          </Modal>
+
+          <Modal
+            open={Boolean(deletingFigure)}
+            onClose={() => (deleting ? null : setDeletingFigure(null))}
+            title="Figur löschen?"
+            footer={
+              <>
+                <button
+                  className="btn-secondary"
+                  onClick={() => setDeletingFigure(null)}
+                  disabled={deleting}
+                >
+                  Abbrechen
+                </button>
+                <button
+                  className="btn-primary bg-red-600 hover:bg-red-700"
+                  onClick={confirmDelete}
+                  disabled={deleting}
+                >
+                  {deleting ? "Löschen…" : "Endgültig löschen"}
+                </button>
+              </>
+            }
+          >
+            <p className="text-sm text-slate-700 dark:text-slate-200">
+              Soll die Figur{" "}
+              <span className="font-semibold">{deletingFigure?.name}</span>{" "}
+              wirklich gelöscht werden? Diese Aktion kann nicht rückgängig
+              gemacht werden.
+            </p>
           </Modal>
 
           <Modal

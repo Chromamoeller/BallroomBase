@@ -103,6 +103,13 @@ export const api = {
   figures: (courseId) => request(`/figures/${courseId}`),
   addFigure: (courseId, payload) =>
     request(`/figures/${courseId}`, { method: "POST", body: payload }),
+  updateFigure: (courseId, figureId, payload) =>
+    request(`/figures/${courseId}/${figureId}`, {
+      method: "PUT",
+      body: payload,
+    }),
+  deleteFigure: (courseId, figureId) =>
+    request(`/figures/${courseId}/${figureId}`, { method: "DELETE" }),
   sequences: (courseId) => request(`/sequences/${courseId}`),
   addSequence: (courseId, payload) =>
     request(`/sequences/${courseId}`, { method: "POST", body: payload }),
