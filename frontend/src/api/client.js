@@ -73,6 +73,11 @@ export const api = {
     }),
   logout: () => request("/logout", { method: "POST" }),
   me: () => request("/me"),
+  changePassword: (currentPassword, newPassword) =>
+    request("/change-password", {
+      method: "POST",
+      body: { currentPassword, newPassword },
+    }),
   courses: () => request("/courses", { auth: false }),
   users: () => request("/users"),
   createUser: (payload) =>
