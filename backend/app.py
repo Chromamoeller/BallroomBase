@@ -254,6 +254,15 @@ def update_user(user_id):
     has_four_card = 1 if data.get("hasFourCard") else 0
     password = data.get("password") or ""
 
+    four_card_hours_override = None
+    if "fourCardHours" in data and data.get("fourCardHours") is not None:
+        try:
+            four_card_hours_override = int(data["fourCardHours"])
+        except (TypeError, ValueError):
+            return jsonify({"error": "Ungültige Stundenzahl"}), 400
+        if four_card_hours_override < 0 or four_card_hours_override > 4:
+            return jsonify({"error": "Stundenzahl muss zwischen 0 und 4 liegen"}), 400
+
     if not username:
         return jsonify({"error": "Benutzername erforderlich"}), 400
     if role not in ("admin", "teilnehmer"):
@@ -300,6 +309,11 @@ def update_user(user_id):
                 (username, role, course_id, has_four_card, user_id),
             )
         _recompute_four_card(conn, user_id)
+        if four_card_hours_override is not None and has_four_card:
+            conn.execute(
+                "UPDATE users SET four_card_hours = ? WHERE id = ?",
+                (four_card_hours_override, user_id),
+            )
         conn.commit()
 
         row = conn.execute(

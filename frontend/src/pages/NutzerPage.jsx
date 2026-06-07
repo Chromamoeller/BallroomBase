@@ -28,6 +28,7 @@ export default function NutzerPage() {
     role: "teilnehmer",
     courseId: "",
     hasFourCard: false,
+    fourCardHours: 0,
   };
   const [form, setForm] = useState(emptyForm);
   const [exporting, setExporting] = useState(false);
@@ -71,6 +72,7 @@ export default function NutzerPage() {
       role: u.role,
       courseId: u.courseId ? String(u.courseId) : "",
       hasFourCard: Boolean(u.hasFourCard),
+      fourCardHours: Number(u.fourCardHours ?? 0),
     });
     setFormError(null);
     setOpen(true);
@@ -164,6 +166,19 @@ export default function NutzerPage() {
           courseId: Number(form.courseId),
           hasFourCard: form.hasFourCard,
         };
+        if (form.hasFourCard) {
+          const hours = Number(form.fourCardHours);
+          if (
+            !Number.isInteger(hours) ||
+            hours < 0 ||
+            hours > 4
+          ) {
+            setFormError("Stundenzahl muss zwischen 0 und 4 liegen.");
+            setSaving(false);
+            return;
+          }
+          payload.fourCardHours = hours;
+        }
         if (form.password) payload.password = form.password;
         const updated = await api.updateUser(editingId, payload);
         setUsers((prev) =>
@@ -533,6 +548,32 @@ export default function NutzerPage() {
             />
             Hat eine 4er-Karte
           </label>
+          {editingId && form.hasFourCard && (
+            <div>
+              <label className="label" htmlFor="user-four-card-hours">
+                Genutzte Stunden auf der 4er-Karte (0–4)
+              </label>
+              <input
+                id="user-four-card-hours"
+                type="number"
+                min={0}
+                max={4}
+                step={1}
+                className="input"
+                value={form.fourCardHours}
+                onChange={(e) =>
+                  updateField(
+                    "fourCardHours",
+                    e.target.value === "" ? "" : Number(e.target.value),
+                  )
+                }
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                Wird beim nächsten Anwesenheits-Update neu aus der Historie
+                berechnet.
+              </p>
+            </div>
+          )}
 
           {formError && (
             <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
