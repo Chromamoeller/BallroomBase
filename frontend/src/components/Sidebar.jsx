@@ -233,7 +233,7 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }) {
 
       <aside
         className={[
-          "fixed left-0 top-0 z-40 flex h-screen w-72 max-w-[85vw] flex-col border-r border-slate-200 bg-white shadow-card dark:border-slate-700 dark:bg-slate-800",
+          "fixed left-0 top-0 z-40 flex h-screen h-dvh w-72 max-w-[85vw] flex-col border-r border-slate-200 bg-white shadow-card dark:border-slate-700 dark:bg-slate-800",
           "transition-transform duration-200 ease-out",
           isOpen ? "translate-x-0" : "-translate-x-full",
           "lg:translate-x-0",
@@ -283,7 +283,7 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }) {
           ))}
         </nav>
 
-        <div className="border-t border-slate-200 px-4 py-4 dark:border-slate-700">
+        <div className="border-t border-slate-200 px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] dark:border-slate-700">
           <ThemeSwitch />
           <div className="flex items-center gap-2">
             <button onClick={logout} className="btn-secondary flex-1">

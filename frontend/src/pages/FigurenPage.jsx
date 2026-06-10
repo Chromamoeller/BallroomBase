@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 
 import { api } from "../api/client.js";
 import DanceTabs from "../components/DanceTabs.jsx";
+import DanceInfoPanel from "../components/DanceInfoPanel.jsx";
 import Modal from "../components/Modal.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -17,6 +18,7 @@ export default function FigurenPage() {
   const [visibilitySaving, setVisibilitySaving] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createSaving, setCreateSaving] = useState(false);
+  const DIFFICULTY_OPTIONS = ["Leicht", "Mittel", "Schwer"];
   const FOOT_OPTIONS = ["Linker Fuß", "Rechter Fuß"];
   const DIRECTION_OPTIONS = [
     "Vor",
@@ -32,14 +34,12 @@ export default function FigurenPage() {
     "Drehung rechts",
   ];
   const emptyStep = { foot: "", direction: "" };
-  const DIFFICULTY_OPTIONS = ["Leicht", "Mittel", "Schwer"];
   const emptyForm = {
     danceId: "",
     name: "",
     description: "",
     difficulty: "",
     videoUrl: "",
-    spotifyUrl: "",
     count: "",
     footwork: "",
     amountOfTurn: "",
@@ -58,34 +58,9 @@ export default function FigurenPage() {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
   const [expandedFigures, setExpandedFigures] = useState(() => new Set());
-  const [copiedSpotifyId, setCopiedSpotifyId] = useState(null);
+  const [stepsOpenFor, setStepsOpenFor] = useState(() => new Set());
+  const [infoPanelOpen, setInfoPanelOpen] = useState(true);
   const fileInputRef = useRef(null);
-
-  const copySpotifyLink = async (figureId, url) => {
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(url);
-      } else {
-        const ta = document.createElement("textarea");
-        ta.value = url;
-        ta.setAttribute("readonly", "");
-        ta.style.position = "absolute";
-        ta.style.left = "-9999px";
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand("copy");
-        document.body.removeChild(ta);
-      }
-      setCopiedSpotifyId(figureId);
-      setTimeout(() => {
-        setCopiedSpotifyId((current) =>
-          current === figureId ? null : current,
-        );
-      }, 1500);
-    } catch (err) {
-      setError("Link konnte nicht kopiert werden: " + err.message);
-    }
-  };
 
   const toggleFigureExpanded = (id) => {
     setExpandedFigures((current) => {
@@ -94,6 +69,23 @@ export default function FigurenPage() {
       else next.add(id);
       return next;
     });
+  };
+
+  const toggleStepsOpen = (id) => {
+    setStepsOpenFor((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const parseStepsForDisplay = (str) => {
+    if (!str) return [];
+    return str
+      .split(",")
+      .map((p) => p.trim().replace(/^\d+\.\s*/, ""))
+      .filter((s) => s.length > 0);
   };
 
   async function handleExport() {
@@ -174,6 +166,11 @@ export default function FigurenPage() {
     [figures, activeDance, isAdmin],
   );
 
+  const activeDanceName = useMemo(
+    () => dances.find((d) => d.id === activeDance)?.name ?? null,
+    [dances, activeDance],
+  );
+
   useEffect(() => {
     setVisibilityItems(
       figures
@@ -238,7 +235,6 @@ export default function FigurenPage() {
       description: figure.description || "",
       difficulty: figure.difficulty || "",
       videoUrl: figure.videoUrl || "",
-      spotifyUrl: figure.spotifyUrl || "",
       count: figure.count || "",
       footwork: figure.footwork || "",
       amountOfTurn: figure.amountOfTurn || "",
@@ -281,19 +277,6 @@ export default function FigurenPage() {
   const buildRelationString = (rows) =>
     rows.map((r) => r.trim()).filter((r) => r.length > 0).join(", ");
 
-  const relationOptions = useMemo(() => {
-    const danceIdNum = Number(createForm.danceId);
-    if (!danceIdNum) return [];
-    return figures
-      .filter((f) => f.danceId === danceIdNum)
-      .map((f) => f.name)
-      .sort((a, b) => a.localeCompare(b));
-  }, [figures, createForm.danceId]);
-
-  const updateCreateField = (field, value) => {
-    setCreateForm((current) => ({ ...current, [field]: value }));
-  };
-
   const updateStepRow = (index, field, value) => {
     setCreateForm((current) => ({
       ...current,
@@ -328,6 +311,19 @@ export default function FigurenPage() {
       .map((s, i) => `${i + 1}. ${s}`)
       .join(", ");
 
+  const relationOptions = useMemo(() => {
+    const danceIdNum = Number(createForm.danceId);
+    if (!danceIdNum) return [];
+    return figures
+      .filter((f) => f.danceId === danceIdNum)
+      .map((f) => f.name)
+      .sort((a, b) => a.localeCompare(b));
+  }, [figures, createForm.danceId]);
+
+  const updateCreateField = (field, value) => {
+    setCreateForm((current) => ({ ...current, [field]: value }));
+  };
+
   const submitCreateFigure = async (event) => {
     event.preventDefault();
     if (!createForm.danceId) {
@@ -347,7 +343,6 @@ export default function FigurenPage() {
         description: createForm.description.trim(),
         difficulty: createForm.difficulty.trim(),
         videoUrl: createForm.videoUrl.trim(),
-        spotifyUrl: createForm.spotifyUrl.trim(),
         count: createForm.count.trim(),
         footwork: createForm.footwork.trim(),
         amountOfTurn: createForm.amountOfTurn.trim(),
@@ -579,8 +574,11 @@ export default function FigurenPage() {
             <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {visibleFigures.map((f) => {
                 const isExpanded = expandedFigures.has(f.id);
+                const showSteps = stepsOpenFor.has(f.id);
+                const stepItems = parseStepsForDisplay(f.steps);
                 return (
-                  <div key={f.id} className="card flex flex-col p-5">
+                  <Fragment key={f.id}>
+                  <div className="card flex flex-col p-5">
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
@@ -636,12 +634,6 @@ export default function FigurenPage() {
                     </div>
 
                     <div className="mt-4 grid gap-3 text-sm text-slate-600 dark:text-slate-300">
-                      <div>
-                        <div className="font-medium text-slate-800 dark:text-slate-100">
-                          Schritte
-                        </div>
-                        <div>{f.steps || "Nicht angegeben"}</div>
-                      </div>
                       {f.precedes && (
                         <div>
                           <div className="font-medium text-slate-800 dark:text-slate-100">
@@ -698,84 +690,6 @@ export default function FigurenPage() {
                             <p>{f.description}</p>
                           </div>
                         )}
-                        {f.spotifyUrl && (
-                          <div>
-                            <div className="font-medium text-slate-800 dark:text-slate-100">
-                              Musik
-                            </div>
-                            <div className="mt-1 flex flex-wrap items-center gap-2">
-                              <a
-                                href={f.spotifyUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1.5 rounded-full bg-[#1DB954] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#1aa34a] focus:outline-none focus:ring-2 focus:ring-[#1DB954] focus:ring-offset-2"
-                              >
-                                <svg
-                                  width="14"
-                                  height="14"
-                                  viewBox="0 0 24 24"
-                                  fill="currentColor"
-                                  aria-hidden="true"
-                                >
-                                  <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.5 17.32a.75.75 0 0 1-1.03.25c-2.83-1.73-6.4-2.12-10.6-1.16a.75.75 0 1 1-.33-1.46c4.6-1.05 8.55-.6 11.71 1.34.36.22.47.69.25 1.03zm1.47-3.27a.94.94 0 0 1-1.29.31c-3.24-1.99-8.18-2.57-12.01-1.4a.94.94 0 1 1-.54-1.79c4.39-1.34 9.84-.69 13.55 1.59.44.27.58.84.29 1.29zm.13-3.4c-3.88-2.31-10.29-2.52-14-1.39a1.12 1.12 0 1 1-.65-2.15c4.27-1.3 11.34-1.05 15.81 1.6a1.12 1.12 0 1 1-1.16 1.94z" />
-                                </svg>
-                                Auf Spotify öffnen
-                              </a>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  copySpotifyLink(f.id, f.spotifyUrl)
-                                }
-                                className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-2 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600 dark:focus:ring-offset-slate-800"
-                                aria-label="Spotify-Link kopieren"
-                              >
-                                {copiedSpotifyId === f.id ? (
-                                  <>
-                                    <svg
-                                      width="14"
-                                      height="14"
-                                      viewBox="0 0 24 24"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      strokeWidth="2.5"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      aria-hidden="true"
-                                    >
-                                      <polyline points="20 6 9 17 4 12" />
-                                    </svg>
-                                    Kopiert
-                                  </>
-                                ) : (
-                                  <>
-                                    <svg
-                                      width="14"
-                                      height="14"
-                                      viewBox="0 0 24 24"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      strokeWidth="2"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      aria-hidden="true"
-                                    >
-                                      <rect
-                                        x="9"
-                                        y="9"
-                                        width="13"
-                                        height="13"
-                                        rx="2"
-                                        ry="2"
-                                      />
-                                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                                    </svg>
-                                    Link kopieren
-                                  </>
-                                )}
-                              </button>
-                            </div>
-                          </div>
-                        )}
                         <button
                           type="button"
                           onClick={() => setSelectedVideoFigure(f)}
@@ -785,6 +699,15 @@ export default function FigurenPage() {
                         </button>
                       </div>
                     )}
+
+                    <button
+                      type="button"
+                      onClick={() => toggleStepsOpen(f.id)}
+                      aria-pressed={showSteps}
+                      className="btn-secondary mt-4 self-start"
+                    >
+                      {showSteps ? "Schritte ausblenden" : "Schritte anzeigen"}
+                    </button>
 
                     <button
                       type="button"
@@ -811,10 +734,63 @@ export default function FigurenPage() {
                       </svg>
                     </button>
                   </div>
+
+                  {showSteps && (
+                    <div className="card flex flex-col p-5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-widest text-brand-600 dark:text-brand-300">
+                            Schritte
+                          </div>
+                          <h3 className="mt-1 text-base font-semibold text-slate-900 dark:text-slate-100">
+                            {f.name}
+                          </h3>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => toggleStepsOpen(f.id)}
+                          aria-label="Schritte ausblenden"
+                          title="Schritte ausblenden"
+                          className="text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-200"
+                        >
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M18 6 6 18M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+
+                      {stepItems.length === 0 ? (
+                        <div className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+                          Für diese Figur sind keine Schritte hinterlegt.
+                        </div>
+                      ) : (
+                        <ol className="mt-4 flex flex-col items-start gap-2">
+                          {stepItems.map((step, idx) => (
+                            <li
+                              key={idx}
+                              className="inline-flex w-fit max-w-full items-center gap-2 rounded-lg border-2 border-slate-300 bg-white px-2.5 py-1 text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                            >
+                              <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 border-slate-300 text-[10px] font-bold leading-none text-slate-600 dark:border-slate-600 dark:text-slate-300">
+                                {idx + 1}
+                              </span>
+                              <span>{step}</span>
+                            </li>
+                          ))}
+                        </ol>
+                      )}
+                    </div>
+                  )}
+                  </Fragment>
                 );
               })}
             </div>
           )}
+
+          <DanceInfoPanel
+            danceName={activeDanceName}
+            open={infoPanelOpen}
+            onToggle={() => setInfoPanelOpen((v) => !v)}
+          />
 
           <Modal
             open={Boolean(selectedVideoFigure)}
@@ -1255,22 +1231,6 @@ export default function FigurenPage() {
                     updateCreateField("videoUrl", e.target.value)
                   }
                   placeholder="https://…"
-                />
-              </div>
-
-              <div>
-                <label className="label" htmlFor="figure-spotify">
-                  Spotify-Link
-                </label>
-                <input
-                  id="figure-spotify"
-                  type="url"
-                  className="input"
-                  value={createForm.spotifyUrl}
-                  onChange={(e) =>
-                    updateCreateField("spotifyUrl", e.target.value)
-                  }
-                  placeholder="https://open.spotify.com/track/…"
                 />
               </div>
 

@@ -78,49 +78,6 @@ function WaltzIcon() {
   );
 }
 
-function SlowfoxIcon() {
-  return (
-    <svg
-      width="32"
-      height="32"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="4.5" r="1.5" />
-      <path d="M12 6v4" />
-      <path d="M8 8l4 2 4-2" />
-      <path d="M12 10l-3 11h6l-3-11z" />
-      <path d="M9 21h6" />
-    </svg>
-  );
-}
-
-function ShoeIcon() {
-  return (
-    <svg
-      width="32"
-      height="32"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M3 16c0-1 0-3 1-4l5-2 2-2 3 1 4 4h3v3c0 1-1 2-2 2H4c-.5 0-1-.5-1-1z" />
-      <path d="M9 10l-1 2" />
-      <path d="M11 8l-1 2" />
-      <path d="M14 9l-1 2" />
-    </svg>
-  );
-}
-
 function FanIcon() {
   return (
     <svg
@@ -296,20 +253,6 @@ const DANCE_STYLES = {
     iconColor: "text-teal-600",
     underline: "bg-teal-500",
     border: "border-teal-500",
-  },
-  Slowfox: {
-    icon: <SlowfoxIcon />,
-    iconBg: "bg-green-100",
-    iconColor: "text-green-600",
-    underline: "bg-green-500",
-    border: "border-green-500",
-  },
-  Quickstep: {
-    icon: <ShoeIcon />,
-    iconBg: "bg-amber-100",
-    iconColor: "text-amber-600",
-    underline: "bg-amber-500",
-    border: "border-amber-500",
   },
   "Cha Cha Cha": {
     icon: <FanIcon />,
