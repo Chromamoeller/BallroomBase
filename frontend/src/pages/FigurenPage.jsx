@@ -60,6 +60,10 @@ export default function FigurenPage() {
   const [expandedFigures, setExpandedFigures] = useState(() => new Set());
   const [stepsOpenFor, setStepsOpenFor] = useState(() => new Set());
   const [infoPanelOpen, setInfoPanelOpen] = useState(true);
+  const [stepsModalFigure, setStepsModalFigure] = useState(null);
+  const [stepsModalRows, setStepsModalRows] = useState([]);
+  const [stepsModalFoot, setStepsModalFoot] = useState(null);
+  const [stepsModalSaving, setStepsModalSaving] = useState(false);
   const fileInputRef = useRef(null);
 
   const toggleFigureExpanded = (id) => {
@@ -310,6 +314,57 @@ export default function FigurenPage() {
       .filter((s) => s.length > 0)
       .map((s, i) => `${i + 1}. ${s}`)
       .join(", ");
+
+  const openStepsModal = (figure) => {
+    setStepsModalFigure(figure);
+    setStepsModalRows(parseStepsString(figure.steps).filter((r) => r.foot || r.direction));
+    setStepsModalFoot(null);
+  };
+
+  const closeStepsModal = () => {
+    if (stepsModalSaving) return;
+    setStepsModalFigure(null);
+    setStepsModalFoot(null);
+  };
+
+  const stepsModalAddDirection = (direction) => {
+    if (!stepsModalFoot) return;
+    setStepsModalRows((prev) => [...prev, { foot: stepsModalFoot, direction }]);
+    setStepsModalFoot(null);
+  };
+
+  const stepsModalRemoveRow = (index) => {
+    setStepsModalRows((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const saveStepsModal = async () => {
+    if (!stepsModalFigure) return;
+    setStepsModalSaving(true);
+    try {
+      const updated = await api.updateFigure(user.courseId, stepsModalFigure.id, {
+        danceId: stepsModalFigure.danceId,
+        name: stepsModalFigure.name,
+        description: stepsModalFigure.description || "",
+        difficulty: stepsModalFigure.difficulty || "",
+        videoUrl: stepsModalFigure.videoUrl || "",
+        count: stepsModalFigure.count || "",
+        footwork: stepsModalFigure.footwork || "",
+        amountOfTurn: stepsModalFigure.amountOfTurn || "",
+        precedes: stepsModalFigure.precedes || "",
+        follows: stepsModalFigure.follows || "",
+        steps: buildStepsString(stepsModalRows),
+      });
+      setFigures((current) =>
+        current.map((f) => (f.id === stepsModalFigure.id ? { ...f, ...updated } : f)),
+      );
+      setStepsModalFigure(null);
+      setStepsModalFoot(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setStepsModalSaving(false);
+    }
+  };
 
   const relationOptions = useMemo(() => {
     const danceIdNum = Number(createForm.danceId);
@@ -700,14 +755,16 @@ export default function FigurenPage() {
                       </div>
                     )}
 
-                    <button
-                      type="button"
-                      onClick={() => toggleStepsOpen(f.id)}
-                      aria-pressed={showSteps}
-                      className="btn-secondary mt-4 self-start"
-                    >
-                      {showSteps ? "Schritte ausblenden" : "Schritte anzeigen"}
-                    </button>
+                    {(isAdmin || stepItems.length > 0) && (
+                      <button
+                        type="button"
+                        onClick={() => toggleStepsOpen(f.id)}
+                        aria-pressed={showSteps}
+                        className="btn-secondary mt-4 self-start"
+                      >
+                        {showSteps ? "Schritte ausblenden" : "Schritte anzeigen"}
+                      </button>
+                    )}
 
                     <button
                       type="button"
@@ -746,17 +803,32 @@ export default function FigurenPage() {
                             {f.name}
                           </h3>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => toggleStepsOpen(f.id)}
-                          aria-label="Schritte ausblenden"
-                          title="Schritte ausblenden"
-                          className="text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-200"
-                        >
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                            <path d="M18 6 6 18M6 6l12 12" />
-                          </svg>
-                        </button>
+                        <div className="flex items-center gap-1">
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => openStepsModal(f)}
+                              aria-label="Schritte hinzufügen"
+                              title="Schritte hinzufügen"
+                              className="text-slate-400 hover:text-brand-600 dark:text-slate-500 dark:hover:text-brand-400"
+                            >
+                              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <path d="M12 5v14M5 12h14" />
+                              </svg>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => toggleStepsOpen(f.id)}
+                            aria-label="Schritte ausblenden"
+                            title="Schritte ausblenden"
+                            className="text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-200"
+                          >
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                              <path d="M18 6 6 18M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
                       </div>
 
                       {stepItems.length === 0 ? (
@@ -1092,85 +1164,6 @@ export default function FigurenPage() {
                 </div>
               </div>
 
-              <div>
-                <span className="label">Schritte</span>
-                <div className="space-y-2">
-                  {createForm.stepRows.map((row, index) => (
-                    <div key={index} className="flex items-center gap-2">
-                      <select
-                        className="input flex-1"
-                        value={row.foot}
-                        onChange={(e) =>
-                          updateStepRow(index, "foot", e.target.value)
-                        }
-                      >
-                        <option value="">Fuß…</option>
-                        {FOOT_OPTIONS.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        className="input flex-1"
-                        value={row.direction}
-                        onChange={(e) =>
-                          updateStepRow(index, "direction", e.target.value)
-                        }
-                      >
-                        <option value="">Richtung…</option>
-                        {DIRECTION_OPTIONS.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => addStepRow(index)}
-                        className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-brand-600 text-white shadow-sm transition hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-2"
-                        aria-label="Schritt hinzufügen"
-                        title="Schritt hinzufügen"
-                      >
-                        <svg
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M12 5v14M5 12h14" />
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => removeStepRow(index)}
-                        disabled={createForm.stepRows.length <= 1}
-                        className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
-                        aria-label="Schritt entfernen"
-                        title="Schritt entfernen"
-                      >
-                        <svg
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M5 12h14" />
-                        </svg>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="label" htmlFor="figure-count">
@@ -1218,38 +1211,6 @@ export default function FigurenPage() {
                 />
               </div>
 
-              <div>
-                <label className="label" htmlFor="figure-video">
-                  Video-URL
-                </label>
-                <input
-                  id="figure-video"
-                  type="url"
-                  className="input"
-                  value={createForm.videoUrl}
-                  onChange={(e) =>
-                    updateCreateField("videoUrl", e.target.value)
-                  }
-                  placeholder="https://…"
-                />
-              </div>
-
-              <div>
-                <label className="label" htmlFor="figure-description">
-                  Beschreibung
-                </label>
-                <textarea
-                  id="figure-description"
-                  className="input"
-                  rows={3}
-                  value={createForm.description}
-                  onChange={(e) =>
-                    updateCreateField("description", e.target.value)
-                  }
-                  placeholder="Zusätzliche Hinweise oder Beschreibung der Figur"
-                />
-              </div>
-
               {createError && (
                 <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                   {createError}
@@ -1288,6 +1249,97 @@ export default function FigurenPage() {
               wirklich gelöscht werden? Diese Aktion kann nicht rückgängig
               gemacht werden.
             </p>
+          </Modal>
+
+          <Modal
+            open={Boolean(stepsModalFigure)}
+            onClose={closeStepsModal}
+            title={`Schritte – ${stepsModalFigure?.name ?? ""}`}
+            footer={
+              <>
+                <button
+                  type="button"
+                  onClick={closeStepsModal}
+                  disabled={stepsModalSaving}
+                  className="btn-secondary"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  type="button"
+                  onClick={saveStepsModal}
+                  disabled={stepsModalSaving}
+                  className="btn-primary"
+                >
+                  {stepsModalSaving ? "Speichern…" : "Speichern"}
+                </button>
+              </>
+            }
+          >
+            <div className="space-y-5">
+              {stepsModalRows.length > 0 && (
+                <ol className="flex flex-col gap-2">
+                  {stepsModalRows.map((row, idx) => (
+                    <li
+                      key={idx}
+                      className="flex items-center gap-2 rounded-lg border-2 border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                    >
+                      <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 border-slate-300 text-[10px] font-bold leading-none text-slate-600 dark:border-slate-600 dark:text-slate-300">
+                        {idx + 1}
+                      </span>
+                      <span className="flex-1">{row.foot} {row.direction}</span>
+                      <button
+                        type="button"
+                        onClick={() => stepsModalRemoveRow(idx)}
+                        className="text-slate-400 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400"
+                        aria-label="Schritt entfernen"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M18 6 6 18M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+              )}
+
+              <div className="space-y-3">
+                <div className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                  Neuer Schritt
+                </div>
+                <div className="flex gap-3">
+                  {["Linker Fuß", "Rechter Fuß"].map((foot) => (
+                    <button
+                      key={foot}
+                      type="button"
+                      onClick={() => setStepsModalFoot(stepsModalFoot === foot ? null : foot)}
+                      className={`flex-1 rounded-xl border-2 py-3 text-sm font-semibold transition ${
+                        stepsModalFoot === foot
+                          ? "border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-400 dark:bg-brand-900/30 dark:text-brand-300"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-brand-300 hover:bg-brand-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-brand-500"
+                      }`}
+                    >
+                      {foot === "Linker Fuß" ? "L – Linker Fuß" : "R – Rechter Fuß"}
+                    </button>
+                  ))}
+                </div>
+
+                {stepsModalFoot && (
+                  <div className="flex flex-wrap gap-2">
+                    {["Vor", "Zurück", "Links", "Rechts", "Am Platz", "Tip"].map((dir) => (
+                      <button
+                        key={dir}
+                        type="button"
+                        onClick={() => stepsModalAddDirection(dir)}
+                        className="rounded-lg border-2 border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-brand-400 hover:bg-brand-50 hover:text-brand-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-brand-500 dark:hover:bg-brand-900/30 dark:hover:text-brand-300"
+                      >
+                        {dir}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </Modal>
 
           <Modal

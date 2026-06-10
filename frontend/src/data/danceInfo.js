@@ -6,10 +6,9 @@ export const DANCE_INFO = {
     category: "Standard",
     bpm: "84–90 BPM (28–30 Takte/min)",
     timeSignature: "3/4",
-    basicRhythm: "1 – 2 – 3 (lang – kurz – kurz, mit Heben & Senken)",
+    basicRhythm: "1 – 2 – 3 ",
     origin: "England, frühes 20. Jahrhundert",
-    character:
-      "Weich, getragen, mit ausgeprägtem Schwung und Rise & Fall.",
+    character: "Weich, getragen, mit ausgeprägtem Schwung und Rise & Fall.",
     songs: [
       { title: "Moon River", artist: "Andy Williams" },
       { title: "Fly Me to the Moon", artist: "Frank Sinatra" },
@@ -38,7 +37,7 @@ export const DANCE_INFO = {
     category: "Standard",
     bpm: "174–180 BPM (58–60 Takte/min)",
     timeSignature: "3/4",
-    basicRhythm: "1 – 2 – 3, schneller Rechts- bzw. Linksdreher",
+    basicRhythm: "1 – 2 – 3",
     origin: "Österreich, 18./19. Jahrhundert",
     character:
       "Schnell, drehfreudig, fließend – getragen vom typischen Wiener Schwung.",
@@ -72,8 +71,7 @@ export const DANCE_INFO = {
     timeSignature: "4/4",
     basicRhythm: "2 – 3 – 4 – 1 (langsamer „Slow“ auf 1)",
     origin: "Kuba",
-    character:
-      "Langsam, gefühlvoll, sehr ausdrucksstark – „Tanz der Liebe“.",
+    character: "Langsam, gefühlvoll, sehr ausdrucksstark – „Tanz der Liebe“.",
     songs: [
       { title: "Hero", artist: "Enrique Iglesias" },
       { title: "Bailamos", artist: "Enrique Iglesias" },
@@ -88,8 +86,7 @@ export const DANCE_INFO = {
     timeSignature: "2/4",
     basicRhythm: "1 – a – 2 (Bounce / Federn aus den Knien)",
     origin: "Brasilien",
-    character:
-      "Mitreißend, federnd, mit charakteristischem „Samba-Bounce“.",
+    character: "Mitreißend, federnd, mit charakteristischem „Samba-Bounce“.",
     songs: [
       { title: "Mas Que Nada", artist: "Sergio Mendes" },
       { title: "Aquarela do Brasil", artist: "Ary Barroso" },
@@ -102,7 +99,7 @@ export const DANCE_INFO = {
     category: "Latein",
     bpm: "168–176 BPM (42–44 Takte/min)",
     timeSignature: "4/4",
-    basicRhythm: "1 – 2 – 3 – a – 4 – 3 – a – 4 (Chassé rechts/links)",
+    basicRhythm: "1 – 2 – 3 – a – 4 – 1 – a – 2",
     origin: "USA, Swing-Ära der 1940er",
     character:
       "Sehr schnell, sprunghaft, mit hohem Energielevel – wird oft als Finaltanz getanzt.",
@@ -132,15 +129,17 @@ export const DANCE_INFO = {
     category: "Gesellschaftstanz / Modetanz",
     bpm: "ca. 100–140 BPM",
     timeSignature: "4/4",
-    basicRhythm: "Langsam – langsam – schnell – schnell (1, 2, 3-&-4)",
+    basicRhythm: "1 - 2- 3  (oder: 1 – 2 – & – 3 Hussle)",
     origin: "Aus dem Disco-Sound der späten 1970er entstanden",
-    character:
-      "Unkomplizierter Paartanz für nahezu jeden 4/4-Pop-Song.",
+    character: "Unkomplizierter Paartanz für nahezu jeden 4/4-Pop-Song.",
     songs: [
       { title: "Atemlos durch die Nacht", artist: "Helene Fischer" },
       { title: "Marmor, Stein und Eisen bricht", artist: "Drafi Deutscher" },
       { title: "Verdammt, ich lieb' dich", artist: "Matthias Reim" },
-      { title: "Ein Stern (der deinen Namen trägt)", artist: "DJ Ötzi & Nik P." },
+      {
+        title: "Ein Stern (der deinen Namen trägt)",
+        artist: "DJ Ötzi & Nik P.",
+      },
       { title: "Final Countdown", artist: "Europe" },
     ],
   },
