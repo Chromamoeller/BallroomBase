@@ -59,7 +59,7 @@ export default function FigurenPage() {
   const [importResult, setImportResult] = useState(null);
   const [expandedFigures, setExpandedFigures] = useState(() => new Set());
   const [stepsOpenFor, setStepsOpenFor] = useState(() => new Set());
-  const [infoPanelOpen, setInfoPanelOpen] = useState(true);
+  const [infoPanelOpen, setInfoPanelOpen] = useState(false);
   const [stepsModalFigure, setStepsModalFigure] = useState(null);
   const [stepsModalRows, setStepsModalRows] = useState([]);
   const [stepsModalFoot, setStepsModalFoot] = useState(null);
@@ -211,13 +211,19 @@ export default function FigurenPage() {
 
   const parseRelationString = (str) => {
     if (!str) return [""];
-    const parts = str.split(",").map((p) => p.trim()).filter(Boolean);
+    const parts = str
+      .split(",")
+      .map((p) => p.trim())
+      .filter(Boolean);
     return parts.length > 0 ? parts : [""];
   };
 
   const parseStepsString = (str) => {
     if (!str) return [{ ...emptyStep }];
-    const parts = str.split(",").map((p) => p.trim()).filter(Boolean);
+    const parts = str
+      .split(",")
+      .map((p) => p.trim())
+      .filter(Boolean);
     if (parts.length === 0) return [{ ...emptyStep }];
     return parts.map((part) => {
       const noNum = part.replace(/^\d+\.\s*/, "");
@@ -279,7 +285,10 @@ export default function FigurenPage() {
   };
 
   const buildRelationString = (rows) =>
-    rows.map((r) => r.trim()).filter((r) => r.length > 0).join(", ");
+    rows
+      .map((r) => r.trim())
+      .filter((r) => r.length > 0)
+      .join(", ");
 
   const updateStepRow = (index, field, value) => {
     setCreateForm((current) => ({
@@ -317,7 +326,9 @@ export default function FigurenPage() {
 
   const openStepsModal = (figure) => {
     setStepsModalFigure(figure);
-    setStepsModalRows(parseStepsString(figure.steps).filter((r) => r.foot || r.direction));
+    setStepsModalRows(
+      parseStepsString(figure.steps).filter((r) => r.foot || r.direction),
+    );
     setStepsModalFoot(null);
   };
 
@@ -341,21 +352,27 @@ export default function FigurenPage() {
     if (!stepsModalFigure) return;
     setStepsModalSaving(true);
     try {
-      const updated = await api.updateFigure(user.courseId, stepsModalFigure.id, {
-        danceId: stepsModalFigure.danceId,
-        name: stepsModalFigure.name,
-        description: stepsModalFigure.description || "",
-        difficulty: stepsModalFigure.difficulty || "",
-        videoUrl: stepsModalFigure.videoUrl || "",
-        count: stepsModalFigure.count || "",
-        footwork: stepsModalFigure.footwork || "",
-        amountOfTurn: stepsModalFigure.amountOfTurn || "",
-        precedes: stepsModalFigure.precedes || "",
-        follows: stepsModalFigure.follows || "",
-        steps: buildStepsString(stepsModalRows),
-      });
+      const updated = await api.updateFigure(
+        user.courseId,
+        stepsModalFigure.id,
+        {
+          danceId: stepsModalFigure.danceId,
+          name: stepsModalFigure.name,
+          description: stepsModalFigure.description || "",
+          difficulty: stepsModalFigure.difficulty || "",
+          videoUrl: stepsModalFigure.videoUrl || "",
+          count: stepsModalFigure.count || "",
+          footwork: stepsModalFigure.footwork || "",
+          amountOfTurn: stepsModalFigure.amountOfTurn || "",
+          precedes: stepsModalFigure.precedes || "",
+          follows: stepsModalFigure.follows || "",
+          steps: buildStepsString(stepsModalRows),
+        },
+      );
       setFigures((current) =>
-        current.map((f) => (f.id === stepsModalFigure.id ? { ...f, ...updated } : f)),
+        current.map((f) =>
+          f.id === stepsModalFigure.id ? { ...f, ...updated } : f,
+        ),
       );
       setStepsModalFigure(null);
       setStepsModalFoot(null);
@@ -633,225 +650,249 @@ export default function FigurenPage() {
                 const stepItems = parseStepsForDisplay(f.steps);
                 return (
                   <Fragment key={f.id}>
-                  <div className="card flex flex-col p-5">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-                          {f.name}
-                        </h3>
-                        {isAdmin && !f.visible && (
-                          <div className="mt-1 text-xs font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400">
-                            Ausgeblendet
-                          </div>
-                        )}
-                      </div>
-                      {isAdmin && (
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => openEditModal(f)}
-                            aria-label="Bearbeiten"
-                            title="Bearbeiten"
-                            className="text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-200"
-                          >
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              className="h-5 w-5"
-                              viewBox="0 0 20 20"
-                              fill="currentColor"
-                            >
-                              <path d="M17.414 2.586a2 2 0 0 0-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 0 0 0-2.828z" />
-                              <path d="M2 15a1 1 0 0 0 1 1h3v-2H4v-2H2v3z" />
-                            </svg>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDeletingFigure(f)}
-                            aria-label="Löschen"
-                            title="Löschen"
-                            className="text-slate-400 hover:text-red-600 dark:text-slate-500 dark:hover:text-red-400"
-                          >
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              className="h-5 w-5"
-                              viewBox="0 0 20 20"
-                              fill="currentColor"
-                            >
-                              <path
-                                fillRule="evenodd"
-                                d="M9 2a1 1 0 0 0-.894.553L7.382 4H4a1 1 0 0 0 0 2h12a1 1 0 1 0 0-2h-3.382l-.724-1.447A1 1 0 0 0 11 2H9zM5 8a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v8a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8zm3 2a1 1 0 0 1 2 0v5a1 1 0 1 1-2 0v-5zm4 0a1 1 0 1 1 2 0v5a1 1 0 1 1-2 0v-5z"
-                                clipRule="evenodd"
-                              />
-                            </svg>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="mt-4 grid gap-3 text-sm text-slate-600 dark:text-slate-300">
-                      {f.precedes && (
-                        <div>
-                          <div className="font-medium text-slate-800 dark:text-slate-100">
-                            Vorangehende Figuren
-                          </div>
-                          <div>{f.precedes}</div>
-                        </div>
-                      )}
-                      {f.follows && (
-                        <div>
-                          <div className="font-medium text-slate-800 dark:text-slate-100">
-                            Folgende Figuren
-                          </div>
-                          <div>{f.follows}</div>
-                        </div>
-                      )}
-                    </div>
-
-                    {isExpanded && (
-                      <div className="mt-4 grid gap-3 border-t border-slate-100 pt-4 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">
-                        {f.difficulty && (
-                          <div>
-                            <div className="font-medium text-slate-800 dark:text-slate-100">
-                              Schwierigkeit
-                            </div>
-                            <span className="mt-1 inline-flex items-center rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-900/40 dark:text-brand-200">
-                              {f.difficulty}
-                            </span>
-                          </div>
-                        )}
-                        <div>
-                          <div className="font-medium text-slate-800 dark:text-slate-100">
-                            Count
-                          </div>
-                          <div>{f.count || "Nicht angegeben"}</div>
-                        </div>
-                        <div>
-                          <div className="font-medium text-slate-800 dark:text-slate-100">
-                            Fußarbeit
-                          </div>
-                          <div>{f.footwork || "Nicht angegeben"}</div>
-                        </div>
-                        <div>
-                          <div className="font-medium text-slate-800 dark:text-slate-100">
-                            Drehung
-                          </div>
-                          <div>{f.amountOfTurn || "Nicht angegeben"}</div>
-                        </div>
-                        {f.description && (
-                          <div>
-                            <div className="font-medium text-slate-800 dark:text-slate-100">
-                              Beschreibung
-                            </div>
-                            <p>{f.description}</p>
-                          </div>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => setSelectedVideoFigure(f)}
-                          className="btn-secondary mt-1 self-start"
-                        >
-                          Video abspielen
-                        </button>
-                      </div>
-                    )}
-
-                    {(isAdmin || stepItems.length > 0) && (
-                      <button
-                        type="button"
-                        onClick={() => toggleStepsOpen(f.id)}
-                        aria-pressed={showSteps}
-                        className="btn-secondary mt-4 self-start"
-                      >
-                        {showSteps ? "Schritte ausblenden" : "Schritte anzeigen"}
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() => toggleFigureExpanded(f.id)}
-                      aria-expanded={isExpanded}
-                      aria-label={
-                        isExpanded ? "Weniger anzeigen" : "Mehr anzeigen"
-                      }
-                      title={isExpanded ? "Weniger anzeigen" : "Mehr anzeigen"}
-                      className="mt-4 flex w-full items-center justify-center rounded-md py-1 text-slate-400 transition hover:bg-slate-50 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-700 dark:hover:text-slate-200"
-                    >
-                      <svg
-                        width="20"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className={`transition-transform ${isExpanded ? "rotate-180" : ""}`}
-                      >
-                        <path d="M6 9l6 6 6-6" />
-                      </svg>
-                    </button>
-                  </div>
-
-                  {showSteps && (
                     <div className="card flex flex-col p-5">
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <div className="text-xs font-semibold uppercase tracking-widest text-brand-600 dark:text-brand-300">
-                            Schritte
-                          </div>
-                          <h3 className="mt-1 text-base font-semibold text-slate-900 dark:text-slate-100">
+                          <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
                             {f.name}
                           </h3>
+                          {isAdmin && !f.visible && (
+                            <div className="mt-1 text-xs font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400">
+                              Ausgeblendet
+                            </div>
+                          )}
                         </div>
-                        <div className="flex items-center gap-1">
-                          {isAdmin && (
+                        {isAdmin && (
+                          <div className="flex items-center gap-2">
                             <button
                               type="button"
-                              onClick={() => openStepsModal(f)}
-                              aria-label="Schritte hinzufügen"
-                              title="Schritte hinzufügen"
-                              className="text-slate-400 hover:text-brand-600 dark:text-slate-500 dark:hover:text-brand-400"
+                              onClick={() => openEditModal(f)}
+                              aria-label="Bearbeiten"
+                              title="Bearbeiten"
+                              className="text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-200"
                             >
-                              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                                <path d="M12 5v14M5 12h14" />
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-5 w-5"
+                                viewBox="0 0 20 20"
+                                fill="currentColor"
+                              >
+                                <path d="M17.414 2.586a2 2 0 0 0-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 0 0 0-2.828z" />
+                                <path d="M2 15a1 1 0 0 0 1 1h3v-2H4v-2H2v3z" />
                               </svg>
                             </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeletingFigure(f)}
+                              aria-label="Löschen"
+                              title="Löschen"
+                              className="text-slate-400 hover:text-red-600 dark:text-slate-500 dark:hover:text-red-400"
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-5 w-5"
+                                viewBox="0 0 20 20"
+                                fill="currentColor"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M9 2a1 1 0 0 0-.894.553L7.382 4H4a1 1 0 0 0 0 2h12a1 1 0 1 0 0-2h-3.382l-.724-1.447A1 1 0 0 0 11 2H9zM5 8a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v8a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8zm3 2a1 1 0 0 1 2 0v5a1 1 0 1 1-2 0v-5zm4 0a1 1 0 1 1 2 0v5a1 1 0 1 1-2 0v-5z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="mt-4 grid gap-3 text-sm text-slate-600 dark:text-slate-300">
+                        {f.precedes && (
+                          <div>
+                            <div className="font-medium text-slate-800 dark:text-slate-100">
+                              Vorangehende Figuren
+                            </div>
+                            <div>{f.precedes}</div>
+                          </div>
+                        )}
+                        {f.follows && (
+                          <div>
+                            <div className="font-medium text-slate-800 dark:text-slate-100">
+                              Folgende Figuren
+                            </div>
+                            <div>{f.follows}</div>
+                          </div>
+                        )}
+                      </div>
+
+                      {isExpanded && (
+                        <div className="mt-4 grid gap-3 border-t border-slate-100 pt-4 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">
+                          {f.difficulty && (
+                            <div>
+                              <div className="font-medium text-slate-800 dark:text-slate-100">
+                                Schwierigkeit
+                              </div>
+                              <span className="mt-1 inline-flex items-center rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-900/40 dark:text-brand-200">
+                                {f.difficulty}
+                              </span>
+                            </div>
+                          )}
+                          <div>
+                            <div className="font-medium text-slate-800 dark:text-slate-100">
+                              Count
+                            </div>
+                            <div>{f.count || "Nicht angegeben"}</div>
+                          </div>
+                          <div>
+                            <div className="font-medium text-slate-800 dark:text-slate-100">
+                              Fußarbeit
+                            </div>
+                            <div>{f.footwork || "Nicht angegeben"}</div>
+                          </div>
+                          <div>
+                            <div className="font-medium text-slate-800 dark:text-slate-100">
+                              Drehung
+                            </div>
+                            <div>{f.amountOfTurn || "Nicht angegeben"}</div>
+                          </div>
+                          {f.description && (
+                            <div>
+                              <div className="font-medium text-slate-800 dark:text-slate-100">
+                                Beschreibung
+                              </div>
+                              <p>{f.description}</p>
+                            </div>
                           )}
                           <button
                             type="button"
-                            onClick={() => toggleStepsOpen(f.id)}
-                            aria-label="Schritte ausblenden"
-                            title="Schritte ausblenden"
-                            className="text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-200"
+                            onClick={() => setSelectedVideoFigure(f)}
+                            className="btn-secondary mt-1 self-start"
                           >
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                              <path d="M18 6 6 18M6 6l12 12" />
-                            </svg>
+                            Video abspielen
                           </button>
                         </div>
-                      </div>
-
-                      {stepItems.length === 0 ? (
-                        <div className="mt-4 text-sm text-slate-500 dark:text-slate-400">
-                          Für diese Figur sind keine Schritte hinterlegt.
-                        </div>
-                      ) : (
-                        <ol className="mt-4 flex flex-col items-start gap-2">
-                          {stepItems.map((step, idx) => (
-                            <li
-                              key={idx}
-                              className="inline-flex w-fit max-w-full items-center gap-2 rounded-lg border-2 border-slate-300 bg-white px-2.5 py-1 text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
-                            >
-                              <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 border-slate-300 text-[10px] font-bold leading-none text-slate-600 dark:border-slate-600 dark:text-slate-300">
-                                {idx + 1}
-                              </span>
-                              <span>{step}</span>
-                            </li>
-                          ))}
-                        </ol>
                       )}
+
+                      {(isAdmin || stepItems.length > 0) && (
+                        <button
+                          type="button"
+                          onClick={() => toggleStepsOpen(f.id)}
+                          aria-pressed={showSteps}
+                          className="btn-secondary mt-4 self-start"
+                        >
+                          {showSteps
+                            ? "Schritte ausblenden"
+                            : "Schritte anzeigen"}
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => toggleFigureExpanded(f.id)}
+                        aria-expanded={isExpanded}
+                        aria-label={
+                          isExpanded ? "Weniger anzeigen" : "Mehr anzeigen"
+                        }
+                        title={
+                          isExpanded ? "Weniger anzeigen" : "Mehr anzeigen"
+                        }
+                        className="mt-4 flex w-full items-center justify-center rounded-md py-1 text-slate-400 transition hover:bg-slate-50 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+                      >
+                        <svg
+                          width="20"
+                          height="20"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className={`transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                        >
+                          <path d="M6 9l6 6 6-6" />
+                        </svg>
+                      </button>
                     </div>
-                  )}
+
+                    {showSteps && (
+                      <div className="card flex flex-col p-5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="text-xs font-semibold uppercase tracking-widest text-brand-600 dark:text-brand-300">
+                              Schritte
+                            </div>
+                            <h3 className="mt-1 text-base font-semibold text-slate-900 dark:text-slate-100">
+                              {f.name}
+                            </h3>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {isAdmin && (
+                              <button
+                                type="button"
+                                onClick={() => openStepsModal(f)}
+                                aria-label="Schritte hinzufügen"
+                                title="Schritte hinzufügen"
+                                className="text-slate-400 hover:text-brand-600 dark:text-slate-500 dark:hover:text-brand-400"
+                              >
+                                <svg
+                                  width="20"
+                                  height="20"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  aria-hidden="true"
+                                >
+                                  <path d="M12 5v14M5 12h14" />
+                                </svg>
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => toggleStepsOpen(f.id)}
+                              aria-label="Schritte ausblenden"
+                              title="Schritte ausblenden"
+                              className="text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-200"
+                            >
+                              <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                aria-hidden="true"
+                              >
+                                <path d="M18 6 6 18M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+
+                        {stepItems.length === 0 ? (
+                          <div className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+                            Für diese Figur sind keine Schritte hinterlegt.
+                          </div>
+                        ) : (
+                          <ol className="mt-4 flex flex-col items-start gap-2">
+                            {stepItems.map((step, idx) => (
+                              <li
+                                key={idx}
+                                className="inline-flex w-fit max-w-full items-center gap-2 rounded-lg border-2 border-slate-300 bg-white px-2.5 py-1 text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                              >
+                                <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 border-slate-300 text-[10px] font-bold leading-none text-slate-600 dark:border-slate-600 dark:text-slate-300">
+                                  {idx + 1}
+                                </span>
+                                <span>{step}</span>
+                              </li>
+                            ))}
+                          </ol>
+                        )}
+                      </div>
+                    )}
                   </Fragment>
                 );
               })}
@@ -1287,14 +1328,25 @@ export default function FigurenPage() {
                       <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 border-slate-300 text-[10px] font-bold leading-none text-slate-600 dark:border-slate-600 dark:text-slate-300">
                         {idx + 1}
                       </span>
-                      <span className="flex-1">{row.foot} {row.direction}</span>
+                      <span className="flex-1">
+                        {row.foot} {row.direction}
+                      </span>
                       <button
                         type="button"
                         onClick={() => stepsModalRemoveRow(idx)}
                         className="text-slate-400 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400"
                         aria-label="Schritt entfernen"
                       >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
                           <path d="M18 6 6 18M6 6l12 12" />
                         </svg>
                       </button>
@@ -1312,21 +1364,32 @@ export default function FigurenPage() {
                     <button
                       key={foot}
                       type="button"
-                      onClick={() => setStepsModalFoot(stepsModalFoot === foot ? null : foot)}
+                      onClick={() =>
+                        setStepsModalFoot(stepsModalFoot === foot ? null : foot)
+                      }
                       className={`flex-1 rounded-xl border-2 py-3 text-sm font-semibold transition ${
                         stepsModalFoot === foot
                           ? "border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-400 dark:bg-brand-900/30 dark:text-brand-300"
                           : "border-slate-200 bg-white text-slate-700 hover:border-brand-300 hover:bg-brand-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-brand-500"
                       }`}
                     >
-                      {foot === "Linker Fuß" ? "L – Linker Fuß" : "R – Rechter Fuß"}
+                      {foot === "Linker Fuß"
+                        ? "L – Linker Fuß"
+                        : "R – Rechter Fuß"}
                     </button>
                   ))}
                 </div>
 
                 {stepsModalFoot && (
                   <div className="flex flex-wrap gap-2">
-                    {["Vor", "Zurück", "Links", "Rechts", "Am Platz", "Tip"].map((dir) => (
+                    {[
+                      "Vor",
+                      "Zurück",
+                      "Links",
+                      "Rechts",
+                      "Am Platz",
+                      "Tip",
+                    ].map((dir) => (
                       <button
                         key={dir}
                         type="button"

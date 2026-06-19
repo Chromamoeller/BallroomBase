@@ -7,6 +7,7 @@ import FigurenPage from "./pages/FigurenPage.jsx";
 import FolgenPage from "./pages/FolgenPage.jsx";
 import HistoriePage from "./pages/HistoriePage.jsx";
 import HomePage from "./pages/HomePage.jsx";
+import KursePage from "./pages/KursePage.jsx";
 import LoginPage from "./pages/LoginPage.jsx";
 import NutzerPage from "./pages/NutzerPage.jsx";
 import WelcomePage from "./pages/WelcomePage.jsx";
@@ -33,6 +34,14 @@ export default function App() {
           element={
             <ProtectedRoute adminOnly>
               <NutzerPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/kurse"
+          element={
+            <ProtectedRoute adminOnly>
+              <KursePage />
             </ProtectedRoute>
           }
         />

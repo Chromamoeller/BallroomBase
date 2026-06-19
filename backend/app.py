@@ -32,6 +32,7 @@ from auth import bp as auth_bp  # noqa: E402
 from catalog import bp as catalog_bp  # noqa: E402
 from figures import bp as figures_bp  # noqa: E402
 from history import bp as history_bp  # noqa: E402
+from kurse import bp as kurse_bp  # noqa: E402
 from sequences import bp as sequences_bp  # noqa: E402
 from users import bp as users_bp  # noqa: E402
 
@@ -42,6 +43,7 @@ app.register_blueprint(figures_bp)
 app.register_blueprint(sequences_bp)
 app.register_blueprint(history_bp)
 app.register_blueprint(attendance_bp)
+app.register_blueprint(kurse_bp)
 
 
 @app.route("/")

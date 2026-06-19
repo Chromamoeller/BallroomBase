@@ -143,6 +143,22 @@ export const DANCE_INFO = {
       { title: "Final Countdown", artist: "Europe" },
     ],
   },
+  Foxtrott: {
+    category: "Standard",
+    bpm: "112–120 BPM (28–30 Takte/min)",
+    timeSignature: "4/4",
+    basicRhythm: "Slow – Quick – Quick",
+    origin: "USA, frühes 20. Jahrhundert (nach Harry Fox)",
+    character:
+      "Weich, gleitend und elegant – ein durchgehender Bewegungsfluss mit ausgeprägtem Rise & Fall.",
+    songs: [
+      { title: "Cheek to Cheek", artist: "Fred Astaire" },
+      { title: "L-O-V-E", artist: "Nat King Cole" },
+      { title: "Beyond the Sea", artist: "Bobby Darin" },
+      { title: "The Way You Look Tonight", artist: "Frank Sinatra" },
+      { title: "What a Wonderful World", artist: "Louis Armstrong" },
+    ],
+  },
 };
 
 export function getDanceInfo(name) {

@@ -14,6 +14,7 @@ DANCES = [
     "Jive",
     "Paso Doble",
     "Discofox",
+    "Foxtrott",
 ]
 
 DEFAULT_USERS = [

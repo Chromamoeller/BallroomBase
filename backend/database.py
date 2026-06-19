@@ -98,6 +98,24 @@ CREATE TABLE IF NOT EXISTS attendance_entries (
     FOREIGN KEY (user_id) REFERENCES users(id),
     UNIQUE(attendance_id, user_id)
 );
+
+-- Eigenständige Kursangebote (getrennt von der `courses`-Tabelle, die nur
+-- Nutzer/Figuren gruppiert). Teilnehmer sind hier reine Strings ohne Account.
+CREATE TABLE IF NOT EXISTS course_programs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    time TEXT,
+    start_date TEXT,
+    hours INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS course_program_participants (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    program_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    paid INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (program_id) REFERENCES course_programs(id) ON DELETE CASCADE
+);
 """
 
 

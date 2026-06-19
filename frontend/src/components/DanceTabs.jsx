@@ -212,6 +212,28 @@ function DiscoBallIcon() {
   );
 }
 
+function FoxIcon() {
+  return (
+    <svg
+      width="32"
+      height="32"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4 4l4 4.5 4 1 4-1 4-4.5-2 5c0 4-2.5 7-6 9-3.5-2-6-5-6-9z" />
+      <circle cx="9.5" cy="11" r="0.7" fill="currentColor" />
+      <circle cx="14.5" cy="11" r="0.7" fill="currentColor" />
+      <path d="M12 13.5v1.5" />
+      <circle cx="12" cy="15.5" r="0.8" fill="currentColor" />
+    </svg>
+  );
+}
+
 function MusicIcon() {
   return (
     <svg
@@ -295,6 +317,13 @@ const DANCE_STYLES = {
     iconColor: "text-sky-600",
     underline: "bg-sky-500",
     border: "border-sky-500",
+  },
+  Foxtrott: {
+    icon: <FoxIcon />,
+    iconBg: "bg-amber-100",
+    iconColor: "text-amber-600",
+    underline: "bg-amber-500",
+    border: "border-amber-500",
   },
 };
 

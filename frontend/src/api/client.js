@@ -79,6 +79,13 @@ export const api = {
       body: { currentPassword, newPassword },
     }),
   courses: () => request("/courses", { auth: false }),
+  coursePrograms: () => request("/course-programs"),
+  createCourseProgram: (payload) =>
+    request("/course-programs", { method: "POST", body: payload }),
+  updateCourseProgram: (id, payload) =>
+    request(`/course-programs/${id}`, { method: "PUT", body: payload }),
+  deleteCourseProgram: (id) =>
+    request(`/course-programs/${id}`, { method: "DELETE" }),
   users: () => request("/users"),
   createUser: (payload) =>
     request("/users", { method: "POST", body: payload }),
