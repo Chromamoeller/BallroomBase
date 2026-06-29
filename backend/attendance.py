@@ -1,25 +1,17 @@
-"""Anwesenheit + 4er-Karten: CRUD, CSV, Bezahl-Status, Neu-Berechnung."""
+"""Anwesenheit + 4er-Karten: CRUD, Bezahl-Status, Neu-Berechnung.
 
-import csv
-import io
+Import/Export läuft zentral über backup.py."""
+
 from datetime import datetime, timezone
 
-from flask import Blueprint, Response, jsonify, request
+from flask import Blueprint, jsonify, request
 
-from _shared import (
-    ensure_course_access,
-    parse_bool,
-    read_csv_upload,
-    recompute_all_four_cards,
-)
+from _shared import ensure_course_access, recompute_all_four_cards
 from auth import auth_required
 from database import get_connection
 
 
 bp = Blueprint("attendance", __name__)
-
-
-ATTENDANCE_CSV_COLUMNS = ["date", "username", "present"]
 
 
 @bp.get("/api/attendance/<int:course_id>")
@@ -222,163 +214,6 @@ def get_all_attendance(course_id):
             }
             for d in date_rows
         ])
-    finally:
-        conn.close()
-
-
-@bp.get("/api/attendance/<int:course_id>/export")
-@auth_required(roles=["admin"])
-def export_attendance(course_id):
-    conn = get_connection()
-    try:
-        rows = conn.execute(
-            "SELECT a.date, u.username, ae.present "
-            "FROM attendance_entries ae "
-            "JOIN attendance a ON a.id = ae.attendance_id "
-            "JOIN users u ON u.id = ae.user_id "
-            "WHERE a.course_id = ? "
-            "ORDER BY a.date ASC, a.id ASC, u.username ASC",
-            (course_id,),
-        ).fetchall()
-    finally:
-        conn.close()
-
-    buffer = io.StringIO()
-    writer = csv.writer(buffer)
-    writer.writerow(ATTENDANCE_CSV_COLUMNS)
-    for r in rows:
-        writer.writerow([
-            r["date"] or "",
-            r["username"],
-            "1" if r["present"] else "0",
-        ])
-
-    csv_text = "﻿" + buffer.getvalue()
-    filename = f"anwesenheit-export-{datetime.now().strftime('%Y%m%d-%H%M%S')}.csv"
-    return Response(
-        csv_text,
-        mimetype="text/csv; charset=utf-8",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
-
-
-@bp.post("/api/attendance/<int:course_id>/import")
-@auth_required(roles=["admin"])
-def import_attendance(course_id):
-    upload = request.files.get("file")
-    if not upload:
-        return jsonify({"error": "Keine Datei hochgeladen"}), 400
-
-    parsed, err = read_csv_upload(upload)
-    if err:
-        return err
-    reader, fieldnames = parsed
-
-    required = ["date", "username", "present"]
-    missing = [c for c in required if c not in fieldnames]
-    if missing:
-        return jsonify({
-            "error": f"Fehlende Spalten: {', '.join(missing)}. "
-                     f"Erwartet: {', '.join(ATTENDANCE_CSV_COLUMNS)}"
-        }), 400
-
-    conn = get_connection()
-    try:
-        user_rows = conn.execute(
-            "SELECT id, username FROM users WHERE course_id = ?",
-            (course_id,),
-        ).fetchall()
-        users_by_name = {r["username"].strip().lower(): r["id"] for r in user_rows}
-
-        existing = conn.execute(
-            "SELECT id, date FROM attendance WHERE course_id = ?",
-            (course_id,),
-        ).fetchall()
-        existing_dates = {r["date"]: r["id"] for r in existing if r["date"]}
-
-        def cell(row, key):
-            src = fieldnames.get(key)
-            if src is None:
-                return ""
-            return (row.get(src) or "").strip()
-
-        grouped: dict[str, list] = {}
-        row_errors = []
-
-        for idx, row in enumerate(reader, start=2):
-            date = cell(row, "date")
-            username = cell(row, "username")
-            present_raw = cell(row, "present")
-
-            if not date:
-                row_errors.append(f"Zeile {idx}: Datum fehlt")
-                continue
-            if not username:
-                row_errors.append(f"Zeile {idx}: Benutzername fehlt")
-                continue
-            user_id = users_by_name.get(username.lower())
-            if not user_id:
-                row_errors.append(
-                    f"Zeile {idx} ({username}): Nutzer im Kurs nicht gefunden"
-                )
-                continue
-
-            grouped.setdefault(date, []).append({
-                "user_id": user_id,
-                "present": 1 if parse_bool(present_raw) else 0,
-            })
-
-        created_dates = 0
-        updated_dates = []
-        entries_added = 0
-        entries_skipped = 0
-
-        for date, entries in grouped.items():
-            attendance_id = existing_dates.get(date)
-            if attendance_id is None:
-                cur = conn.execute(
-                    "INSERT INTO attendance (course_id, date) VALUES (?, ?)",
-                    (course_id, date),
-                )
-                attendance_id = cur.lastrowid
-                created_dates += 1
-                existing_user_ids = set()
-            else:
-                existing_entries = conn.execute(
-                    "SELECT user_id FROM attendance_entries WHERE attendance_id = ?",
-                    (attendance_id,),
-                ).fetchall()
-                existing_user_ids = {r["user_id"] for r in existing_entries}
-
-            added_here = 0
-            for e in entries:
-                if e["user_id"] in existing_user_ids:
-                    entries_skipped += 1
-                    continue
-                conn.execute(
-                    "INSERT INTO attendance_entries "
-                    "(attendance_id, user_id, present, hours) VALUES (?,?,?,?)",
-                    (attendance_id, e["user_id"], e["present"], None),
-                )
-                existing_user_ids.add(e["user_id"])
-                entries_added += 1
-                added_here += 1
-
-            if added_here > 0 and date in existing_dates:
-                updated_dates.append(date)
-
-        if entries_added > 0:
-            recompute_all_four_cards(conn, course_id)
-
-        conn.commit()
-        return jsonify({
-            "created": created_dates,
-            "updated": updated_dates,
-            "entriesAdded": entries_added,
-            "entriesSkipped": entries_skipped,
-            "skipped": [],
-            "errors": row_errors,
-        })
     finally:
         conn.close()
 

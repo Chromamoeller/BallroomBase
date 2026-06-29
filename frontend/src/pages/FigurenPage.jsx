@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 
 import { api } from "../api/client.js";
 import DanceTabs from "../components/DanceTabs.jsx";
@@ -54,9 +54,6 @@ export default function FigurenPage() {
   const [deleting, setDeleting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [exporting, setExporting] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState(null);
   const [expandedFigures, setExpandedFigures] = useState(() => new Set());
   const [stepsOpenFor, setStepsOpenFor] = useState(() => new Set());
   const [infoPanelOpen, setInfoPanelOpen] = useState(false);
@@ -64,7 +61,6 @@ export default function FigurenPage() {
   const [stepsModalRows, setStepsModalRows] = useState([]);
   const [stepsModalFoot, setStepsModalFoot] = useState(null);
   const [stepsModalSaving, setStepsModalSaving] = useState(false);
-  const fileInputRef = useRef(null);
 
   const toggleFigureExpanded = (id) => {
     setExpandedFigures((current) => {
@@ -91,53 +87,6 @@ export default function FigurenPage() {
       .map((p) => p.trim().replace(/^\d+\.\s*/, ""))
       .filter((s) => s.length > 0);
   };
-
-  async function handleExport() {
-    setExporting(true);
-    setError(null);
-    try {
-      const { blob, filename } = await api.exportFigures(user.courseId);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setExporting(false);
-    }
-  }
-
-  function triggerImport() {
-    setImportResult(null);
-    setError(null);
-    fileInputRef.current?.click();
-  }
-
-  async function handleImportFile(e) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    setImporting(true);
-    setError(null);
-    setImportResult(null);
-    try {
-      const result = await api.importFigures(user.courseId, file);
-      setImportResult(result);
-      if (result.created > 0) {
-        const fresh = await api.figures(user.courseId);
-        setFigures(fresh);
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setImporting(false);
-    }
-  }
 
   useEffect(() => {
     let cancelled = false;
@@ -492,61 +441,6 @@ export default function FigurenPage() {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={handleExport}
-                disabled={exporting}
-                className="inline-flex h-10 items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                aria-label="Figuren als CSV exportieren"
-                title="Figuren als CSV exportieren"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" />
-                </svg>
-                <span className="hidden sm:inline">
-                  {exporting ? "Export…" : "Export"}
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={triggerImport}
-                disabled={importing}
-                className="inline-flex h-10 items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                aria-label="Figuren aus CSV importieren"
-                title="Figuren aus CSV importieren"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M12 21V9m0 0l-4 4m4-4l4 4M5 3h14" />
-                </svg>
-                <span className="hidden sm:inline">
-                  {importing ? "Import…" : "Import"}
-                </span>
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".csv,text/csv"
-                className="hidden"
-                onChange={handleImportFile}
-              />
-              <button
-                type="button"
                 onClick={openCreateModal}
                 className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-brand-600 text-white shadow-sm transition hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-2"
                 aria-label="Figur hinzufügen"
@@ -569,48 +463,6 @@ export default function FigurenPage() {
           ) : null
         }
       />
-
-      {importResult && (
-        <div className="mb-4 space-y-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          <div className="flex items-center justify-between">
-            <div>
-              <strong>{importResult.created}</strong> Figuren importiert
-              {importResult.skipped?.length > 0 && (
-                <>
-                  , <strong>{importResult.skipped.length}</strong> übersprungen
-                  (bereits vorhanden)
-                </>
-              )}
-              {importResult.errors?.length > 0 && (
-                <>
-                  , <strong>{importResult.errors.length}</strong> Fehler
-                </>
-              )}
-              .
-            </div>
-            <button
-              type="button"
-              onClick={() => setImportResult(null)}
-              className="text-emerald-700 hover:text-emerald-900"
-              aria-label="Schließen"
-            >
-              ×
-            </button>
-          </div>
-          {importResult.skipped?.length > 0 && (
-            <div className="text-xs text-emerald-700">
-              Übersprungen: {importResult.skipped.join(", ")}
-            </div>
-          )}
-          {importResult.errors?.length > 0 && (
-            <ul className="list-disc space-y-0.5 pl-5 text-xs text-red-700">
-              {importResult.errors.map((msg, i) => (
-                <li key={i}>{msg}</li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
 
       {loading ? (
         <div className="text-sm text-slate-500">Lade Figuren…</div>

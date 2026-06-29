@@ -25,7 +25,7 @@ async function request(path, { method = "GET", body, auth = true } = {}) {
   return data;
 }
 
-async function downloadCsv(path, fallbackFilename) {
+async function downloadFile(path, fallbackFilename) {
   const token = getToken();
   const res = await fetch(`${API_BASE}${path}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -45,7 +45,7 @@ async function downloadCsv(path, fallbackFilename) {
   return { blob, filename };
 }
 
-async function uploadCsv(path, file) {
+async function uploadFile(path, file) {
   const token = getToken();
   const formData = new FormData();
   formData.append("file", file);
@@ -93,24 +93,10 @@ export const api = {
     request(`/users/${userId}`, { method: "PUT", body: payload }),
   deleteUser: (userId) =>
     request(`/users/${userId}`, { method: "DELETE" }),
-  exportUsers: () => downloadCsv("/users/export", "nutzer-export.csv"),
-  importUsers: (file) => uploadCsv("/users/import", file),
-  exportFigures: (courseId) =>
-    downloadCsv(`/figures/${courseId}/export`, "figuren-export.csv"),
-  importFigures: (courseId, file) =>
-    uploadCsv(`/figures/${courseId}/import`, file),
-  exportSequences: (courseId) =>
-    downloadCsv(`/sequences/${courseId}/export`, "folgen-export.csv"),
-  importSequences: (courseId, file) =>
-    uploadCsv(`/sequences/${courseId}/import`, file),
-  exportHistory: (courseId) =>
-    downloadCsv(`/history/${courseId}/export`, "historie-export.csv"),
-  importHistory: (courseId, file) =>
-    uploadCsv(`/history/${courseId}/import`, file),
-  exportAttendance: (courseId) =>
-    downloadCsv(`/attendance/${courseId}/export`, "anwesenheit-export.csv"),
-  importAttendance: (courseId, file) =>
-    uploadCsv(`/attendance/${courseId}/import`, file),
+  // Zentrales Komplett-Backup (alle Abteilungen, nur Admin) – ersetzt die
+  // früheren bereichseigenen CSV-Im-/Exporte.
+  exportBackup: () => downloadFile("/backup/export", "danceorga-backup.zip"),
+  importBackup: (file) => uploadFile("/backup/import", file),
   dances: () => request("/dances", { auth: false }),
   figures: (courseId) => request(`/figures/${courseId}`),
   addFigure: (courseId, payload) =>

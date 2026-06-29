@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { api } from "../api/client.js";
 import Modal from "../components/Modal.jsx";
@@ -31,56 +31,6 @@ export default function AnwesenheitPage() {
   const [cards, setCards] = useState([]);
   const [cardsLoading, setCardsLoading] = useState(false);
   const [cardsError, setCardsError] = useState(null);
-  const [exporting, setExporting] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState(null);
-  const fileInputRef = useRef(null);
-
-  async function handleExport() {
-    setExporting(true);
-    setError(null);
-    try {
-      const { blob, filename } = await api.exportAttendance(user.courseId);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setExporting(false);
-    }
-  }
-
-  function triggerImport() {
-    setImportResult(null);
-    setError(null);
-    fileInputRef.current?.click();
-  }
-
-  async function handleImportFile(e) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    setImporting(true);
-    setError(null);
-    setImportResult(null);
-    try {
-      const result = await api.importAttendance(user.courseId, file);
-      setImportResult(result);
-      if (result.created > 0 || result.entriesAdded > 0) {
-        await load();
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setImporting(false);
-    }
-  }
 
   async function togglePaid(card) {
     const next = !card.paid;
@@ -234,61 +184,6 @@ export default function AnwesenheitPage() {
         action={
           isAdmin ? (
             <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={handleExport}
-                disabled={exporting}
-                className="inline-flex h-10 items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                aria-label="Anwesenheit als CSV exportieren"
-                title="Anwesenheit als CSV exportieren"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" />
-                </svg>
-                <span className="hidden sm:inline">
-                  {exporting ? "Export…" : "Export"}
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={triggerImport}
-                disabled={importing}
-                className="inline-flex h-10 items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                aria-label="Anwesenheit aus CSV importieren"
-                title="Anwesenheit aus CSV importieren"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M12 21V9m0 0l-4 4m4-4l4 4M5 3h14" />
-                </svg>
-                <span className="hidden sm:inline">
-                  {importing ? "Import…" : "Import"}
-                </span>
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".csv,text/csv"
-                className="hidden"
-                onChange={handleImportFile}
-              />
               <button className="btn-secondary" onClick={openFourCards}>
                 4er-Karten Übersicht
               </button>
@@ -306,61 +201,6 @@ export default function AnwesenheitPage() {
       {error && (
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
-        </div>
-      )}
-
-      {importResult && (
-        <div className="mb-4 space-y-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          <div className="flex items-center justify-between">
-            <div>
-              <strong>{importResult.created}</strong> Termine importiert
-              {importResult.updated?.length > 0 && (
-                <>
-                  , <strong>{importResult.updated.length}</strong> bestehende
-                  Termine ergänzt
-                </>
-              )}
-              {importResult.entriesAdded > 0 && (
-                <>
-                  {" "}
-                  (<strong>{importResult.entriesAdded}</strong> Einträge
-                  hinzugefügt)
-                </>
-              )}
-              {importResult.entriesSkipped > 0 && (
-                <>
-                  , <strong>{importResult.entriesSkipped}</strong> Einträge
-                  übersprungen (bereits vorhanden)
-                </>
-              )}
-              {importResult.errors?.length > 0 && (
-                <>
-                  , <strong>{importResult.errors.length}</strong> Fehler
-                </>
-              )}
-              .
-            </div>
-            <button
-              type="button"
-              onClick={() => setImportResult(null)}
-              className="text-emerald-700 hover:text-emerald-900"
-              aria-label="Schließen"
-            >
-              ×
-            </button>
-          </div>
-          {importResult.updated?.length > 0 && (
-            <div className="text-xs text-emerald-700">
-              Ergänzt: {importResult.updated.join(", ")}
-            </div>
-          )}
-          {importResult.errors?.length > 0 && (
-            <ul className="list-disc space-y-0.5 pl-5 text-xs text-red-700">
-              {importResult.errors.map((msg, i) => (
-                <li key={i}>{msg}</li>
-              ))}
-            </ul>
-          )}
         </div>
       )}
 

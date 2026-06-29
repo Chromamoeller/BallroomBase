@@ -1,31 +1,14 @@
-"""Nutzerverwaltung: CRUD + CSV-Import/Export."""
+"""Nutzerverwaltung: CRUD. Import/Export läuft zentral über backup.py."""
 
-import csv
-import io
-from datetime import datetime
-
-from flask import Blueprint, Response, jsonify, request
+from flask import Blueprint, jsonify, request
 from werkzeug.security import generate_password_hash
 
-from _shared import parse_bool, recompute_four_card
+from _shared import recompute_four_card
 from auth import auth_required
 from database import get_connection
 
 
 bp = Blueprint("users", __name__)
-
-
-USER_CSV_COLUMNS = [
-    "username",
-    "password",
-    "password_hash",
-    "role",
-    "course",
-    "has_four_card",
-    "four_card_hours",
-    "four_card_wraps",
-    "four_card_paid_at",
-]
 
 
 @bp.get("/api/users")
@@ -196,180 +179,6 @@ def update_user(user_id):
             "courseName": row["course_name"],
             "hasFourCard": bool(row["has_four_card"]),
             "fourCardHours": row["four_card_hours"],
-        })
-    finally:
-        conn.close()
-
-
-@bp.get("/api/users/export")
-@auth_required(roles=["admin"])
-def export_users():
-    conn = get_connection()
-    try:
-        rows = conn.execute(
-            "SELECT u.username, u.password_hash, u.role, u.has_four_card, "
-            "u.four_card_hours, u.four_card_wraps, u.four_card_paid_at, "
-            "c.name AS course_name "
-            "FROM users u JOIN courses c ON c.id = u.course_id "
-            "ORDER BY u.username"
-        ).fetchall()
-    finally:
-        conn.close()
-
-    buffer = io.StringIO()
-    writer = csv.writer(buffer)
-    writer.writerow(USER_CSV_COLUMNS)
-    for r in rows:
-        writer.writerow([
-            r["username"],
-            "",
-            r["password_hash"],
-            r["role"],
-            r["course_name"],
-            "1" if r["has_four_card"] else "0",
-            r["four_card_hours"] if r["four_card_hours"] is not None else 0,
-            r["four_card_wraps"] if r["four_card_wraps"] is not None else 0,
-            r["four_card_paid_at"] or "",
-        ])
-
-    csv_text = "﻿" + buffer.getvalue()
-    filename = f"nutzer-export-{datetime.now().strftime('%Y%m%d-%H%M%S')}.csv"
-    return Response(
-        csv_text,
-        mimetype="text/csv; charset=utf-8",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
-
-
-@bp.post("/api/users/import")
-@auth_required(roles=["admin"])
-def import_users():
-    upload = request.files.get("file")
-    if not upload:
-        return jsonify({"error": "Keine Datei hochgeladen"}), 400
-
-    try:
-        raw = upload.read().decode("utf-8-sig")
-    except UnicodeDecodeError:
-        try:
-            upload.stream.seek(0)
-            raw = upload.read().decode("latin-1")
-        except Exception:
-            return jsonify({"error": "Datei konnte nicht gelesen werden"}), 400
-
-    if not raw.strip():
-        return jsonify({"error": "Datei ist leer"}), 400
-
-    sample = raw[:2048]
-    try:
-        dialect = csv.Sniffer().sniff(sample, delimiters=",;\t|")
-    except csv.Error:
-        dialect = csv.excel
-
-    reader = csv.DictReader(io.StringIO(raw), dialect=dialect)
-    if not reader.fieldnames:
-        return jsonify({"error": "Keine Spaltenüberschriften gefunden"}), 400
-
-    fieldnames = {name.strip().lower(): name for name in reader.fieldnames if name}
-    required = ["username", "role", "course"]
-    missing = [c for c in required if c not in fieldnames]
-    if missing:
-        return jsonify({
-            "error": f"Fehlende Spalten: {', '.join(missing)}. "
-                     f"Erwartet: {', '.join(USER_CSV_COLUMNS)}"
-        }), 400
-
-    conn = get_connection()
-    try:
-        course_rows = conn.execute("SELECT id, name FROM courses").fetchall()
-        courses_by_name = {r["name"].strip().lower(): r["id"] for r in course_rows}
-
-        created = 0
-        skipped = []
-        errors = []
-
-        for idx, row in enumerate(reader, start=2):
-            def cell(key):
-                src = fieldnames.get(key)
-                if src is None:
-                    return ""
-                return (row.get(src) or "").strip()
-
-            username = cell("username")
-            password = cell("password")
-            password_hash = cell("password_hash")
-            role = cell("role").lower() or "teilnehmer"
-            course_name = cell("course")
-            has_four_card = 1 if parse_bool(cell("has_four_card")) else 0
-
-            def cell_int(key):
-                raw = cell(key)
-                if not raw:
-                    return 0
-                try:
-                    return max(0, int(raw))
-                except ValueError:
-                    return 0
-
-            four_card_hours = cell_int("four_card_hours")
-            four_card_wraps = cell_int("four_card_wraps")
-            four_card_paid_at = cell("four_card_paid_at") or None
-
-            if not username:
-                errors.append(f"Zeile {idx}: Benutzername fehlt")
-                continue
-            if role not in ("admin", "teilnehmer"):
-                errors.append(f"Zeile {idx} ({username}): ungültige Rolle '{role}'")
-                continue
-            if not course_name:
-                errors.append(f"Zeile {idx} ({username}): Kurs fehlt")
-                continue
-            course_id = courses_by_name.get(course_name.lower())
-            if not course_id:
-                errors.append(
-                    f"Zeile {idx} ({username}): Kurs '{course_name}' nicht gefunden"
-                )
-                continue
-
-            existing = conn.execute(
-                "SELECT id FROM users WHERE username = ?", (username,)
-            ).fetchone()
-            if existing:
-                skipped.append(username)
-                continue
-
-            if password_hash:
-                hash_to_store = password_hash
-            elif password:
-                hash_to_store = generate_password_hash(password)
-            else:
-                errors.append(
-                    f"Zeile {idx} ({username}): Passwort oder password_hash erforderlich für neue Nutzer"
-                )
-                continue
-
-            conn.execute(
-                "INSERT INTO users (username, password_hash, role, course_id, has_four_card, "
-                "four_card_hours, four_card_wraps, four_card_paid_at) "
-                "VALUES (?,?,?,?,?,?,?,?)",
-                (
-                    username,
-                    hash_to_store,
-                    role,
-                    course_id,
-                    has_four_card,
-                    four_card_hours,
-                    four_card_wraps,
-                    four_card_paid_at,
-                ),
-            )
-            created += 1
-
-        conn.commit()
-        return jsonify({
-            "created": created,
-            "skipped": skipped,
-            "errors": errors,
         })
     finally:
         conn.close()

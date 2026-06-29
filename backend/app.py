@@ -29,6 +29,7 @@ seed()
 # Import nichts an einer noch nicht existierenden DB scheitern kann.
 from attendance import bp as attendance_bp  # noqa: E402
 from auth import bp as auth_bp  # noqa: E402
+from backup import bp as backup_bp  # noqa: E402
 from catalog import bp as catalog_bp  # noqa: E402
 from figures import bp as figures_bp  # noqa: E402
 from history import bp as history_bp  # noqa: E402
@@ -44,6 +45,7 @@ app.register_blueprint(sequences_bp)
 app.register_blueprint(history_bp)
 app.register_blueprint(attendance_bp)
 app.register_blueprint(kurse_bp)
+app.register_blueprint(backup_bp)
 
 
 @app.route("/")

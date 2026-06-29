@@ -1,20 +1,13 @@
-"""Historie: CRUD + CSV-Import/Export."""
+"""Historie: CRUD. Import/Export läuft zentral über backup.py."""
 
-import csv
-import io
-from datetime import datetime
+from flask import Blueprint, jsonify, request
 
-from flask import Blueprint, Response, jsonify, request
-
-from _shared import ensure_course_access, read_csv_upload
+from _shared import ensure_course_access
 from auth import auth_required
 from database import get_connection
 
 
 bp = Blueprint("history", __name__)
-
-
-HISTORY_CSV_COLUMNS = ["date", "warmup", "lesson", "cooldown"]
 
 
 @bp.get("/api/history/<int:course_id>")
@@ -98,108 +91,6 @@ def update_history(course_id, history_id):
         )
         conn.commit()
         return jsonify({"ok": True})
-    finally:
-        conn.close()
-
-
-@bp.get("/api/history/<int:course_id>/export")
-@auth_required(roles=["admin"])
-def export_history(course_id):
-    conn = get_connection()
-    try:
-        rows = conn.execute(
-            "SELECT date, warmup, lesson, cooldown FROM history "
-            "WHERE course_id = ? ORDER BY date ASC, id ASC",
-            (course_id,),
-        ).fetchall()
-    finally:
-        conn.close()
-
-    buffer = io.StringIO()
-    writer = csv.writer(buffer)
-    writer.writerow(HISTORY_CSV_COLUMNS)
-    for r in rows:
-        writer.writerow([
-            r["date"] or "",
-            r["warmup"] or "",
-            r["lesson"] or "",
-            r["cooldown"] or "",
-        ])
-
-    csv_text = "﻿" + buffer.getvalue()
-    filename = f"historie-export-{datetime.now().strftime('%Y%m%d-%H%M%S')}.csv"
-    return Response(
-        csv_text,
-        mimetype="text/csv; charset=utf-8",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
-
-
-@bp.post("/api/history/<int:course_id>/import")
-@auth_required(roles=["admin"])
-def import_history(course_id):
-    upload = request.files.get("file")
-    if not upload:
-        return jsonify({"error": "Keine Datei hochgeladen"}), 400
-
-    parsed, err = read_csv_upload(upload)
-    if err:
-        return err
-    reader, fieldnames = parsed
-
-    if "date" not in fieldnames:
-        return jsonify({
-            "error": f"Fehlende Spalte: date. "
-                     f"Erwartet: {', '.join(HISTORY_CSV_COLUMNS)}"
-        }), 400
-
-    conn = get_connection()
-    try:
-        existing = conn.execute(
-            "SELECT date FROM history WHERE course_id = ?",
-            (course_id,),
-        ).fetchall()
-        existing_dates = {r["date"] for r in existing if r["date"]}
-
-        created = 0
-        skipped = []
-        errors = []
-
-        def cell(row, key):
-            src = fieldnames.get(key)
-            if src is None:
-                return ""
-            return (row.get(src) or "").strip()
-
-        for idx, row in enumerate(reader, start=2):
-            date = cell(row, "date")
-            if not date:
-                errors.append(f"Zeile {idx}: Datum fehlt")
-                continue
-            if date in existing_dates:
-                skipped.append(date)
-                continue
-
-            conn.execute(
-                "INSERT INTO history (course_id, date, warmup, lesson, cooldown) "
-                "VALUES (?,?,?,?,?)",
-                (
-                    course_id,
-                    date,
-                    cell(row, "warmup"),
-                    cell(row, "lesson"),
-                    cell(row, "cooldown"),
-                ),
-            )
-            existing_dates.add(date)
-            created += 1
-
-        conn.commit()
-        return jsonify({
-            "created": created,
-            "skipped": skipped,
-            "errors": errors,
-        })
     finally:
         conn.close()
 

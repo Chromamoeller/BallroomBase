@@ -1,24 +1,13 @@
-"""Figuren: CRUD, Sichtbarkeit, CSV-Import/Export."""
+"""Figuren: CRUD + Sichtbarkeit. Import/Export läuft zentral über backup.py."""
 
-import csv
-import io
-from datetime import datetime
+from flask import Blueprint, jsonify, request
 
-from flask import Blueprint, Response, jsonify, request
-
-from _shared import ensure_course_access, parse_bool, read_csv_upload
+from _shared import ensure_course_access
 from auth import auth_required
 from database import get_connection
 
 
 bp = Blueprint("figures", __name__)
-
-
-FIGURE_CSV_COLUMNS = [
-    "dance", "name", "description", "difficulty", "video_url",
-    "steps", "count", "footwork", "amount_of_turn",
-    "precedes", "follows", "visible",
-]
 
 
 @bp.get("/api/figures/<int:course_id>")
@@ -231,156 +220,6 @@ def delete_figure(course_id, figure_id):
         conn.execute("DELETE FROM figures WHERE id = ?", (figure_id,))
         conn.commit()
         return jsonify({"ok": True})
-    finally:
-        conn.close()
-
-
-@bp.get("/api/figures/<int:course_id>/export")
-@auth_required(roles=["admin"])
-def export_figures(course_id):
-    conn = get_connection()
-    try:
-        rows = conn.execute(
-            "SELECT f.name, f.description, f.difficulty, f.video_url, "
-            "f.steps, f.count_steps, f.footwork, "
-            "f.amount_of_turn, f.precedes, f.follows, f.visible, "
-            "d.name AS dance_name "
-            "FROM figures f JOIN dances d ON d.id = f.dance_id "
-            "WHERE f.course_id = ? ORDER BY d.id, f.name",
-            (course_id,),
-        ).fetchall()
-    finally:
-        conn.close()
-
-    buffer = io.StringIO()
-    writer = csv.writer(buffer)
-    writer.writerow(FIGURE_CSV_COLUMNS)
-    for r in rows:
-        writer.writerow([
-            r["dance_name"],
-            r["name"],
-            r["description"] or "",
-            r["difficulty"] or "",
-            r["video_url"] or "",
-            r["steps"] or "",
-            r["count_steps"] or "",
-            r["footwork"] or "",
-            r["amount_of_turn"] or "",
-            r["precedes"] or "",
-            r["follows"] or "",
-            "1" if r["visible"] else "0",
-        ])
-
-    csv_text = "﻿" + buffer.getvalue()
-    filename = f"figuren-export-{datetime.now().strftime('%Y%m%d-%H%M%S')}.csv"
-    return Response(
-        csv_text,
-        mimetype="text/csv; charset=utf-8",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
-
-
-@bp.post("/api/figures/<int:course_id>/import")
-@auth_required(roles=["admin"])
-def import_figures(course_id):
-    upload = request.files.get("file")
-    if not upload:
-        return jsonify({"error": "Keine Datei hochgeladen"}), 400
-
-    parsed, err = read_csv_upload(upload)
-    if err:
-        return err
-    reader, fieldnames = parsed
-
-    required = ["dance", "name"]
-    missing = [c for c in required if c not in fieldnames]
-    if missing:
-        return jsonify({
-            "error": f"Fehlende Spalten: {', '.join(missing)}. "
-                     f"Erwartet u.a.: {', '.join(FIGURE_CSV_COLUMNS)}"
-        }), 400
-
-    conn = get_connection()
-    try:
-        dance_rows = conn.execute("SELECT id, name FROM dances").fetchall()
-        dances_by_name = {r["name"].strip().lower(): r["id"] for r in dance_rows}
-
-        existing = conn.execute(
-            "SELECT f.name, d.name AS dance_name "
-            "FROM figures f JOIN dances d ON d.id = f.dance_id "
-            "WHERE f.course_id = ?",
-            (course_id,),
-        ).fetchall()
-        existing_keys = {
-            (r["dance_name"].strip().lower(), r["name"].strip().lower())
-            for r in existing
-        }
-
-        created = 0
-        skipped = []
-        errors = []
-
-        def cell(row, key):
-            src = fieldnames.get(key)
-            if src is None:
-                return ""
-            return (row.get(src) or "").strip()
-
-        for idx, row in enumerate(reader, start=2):
-            dance_name = cell(row, "dance")
-            name = cell(row, "name")
-
-            if not name:
-                errors.append(f"Zeile {idx}: Name fehlt")
-                continue
-            if not dance_name:
-                errors.append(f"Zeile {idx} ({name}): Tanz fehlt")
-                continue
-            dance_id = dances_by_name.get(dance_name.lower())
-            if not dance_id:
-                errors.append(
-                    f"Zeile {idx} ({name}): Tanz '{dance_name}' nicht gefunden"
-                )
-                continue
-
-            key = (dance_name.lower(), name.lower())
-            if key in existing_keys:
-                skipped.append(f"{name} ({dance_name})")
-                continue
-
-            visible_raw = cell(row, "visible")
-            visible = 1 if (not visible_raw or parse_bool(visible_raw)) else 0
-
-            conn.execute(
-                "INSERT INTO figures (course_id, dance_id, name, description, "
-                "difficulty, video_url, steps, count_steps, "
-                "footwork, amount_of_turn, precedes, follows, visible) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                (
-                    course_id,
-                    dance_id,
-                    name,
-                    cell(row, "description") or None,
-                    cell(row, "difficulty") or None,
-                    cell(row, "video_url") or None,
-                    cell(row, "steps") or None,
-                    cell(row, "count") or None,
-                    cell(row, "footwork") or None,
-                    cell(row, "amount_of_turn") or None,
-                    cell(row, "precedes") or None,
-                    cell(row, "follows") or None,
-                    visible,
-                ),
-            )
-            existing_keys.add(key)
-            created += 1
-
-        conn.commit()
-        return jsonify({
-            "created": created,
-            "skipped": skipped,
-            "errors": errors,
-        })
     finally:
         conn.close()
 

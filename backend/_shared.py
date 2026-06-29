@@ -3,8 +3,6 @@
 import csv
 import io
 
-from flask import jsonify
-
 
 def ensure_course_access(user, course_id):
     if user["role"] == "admin":
@@ -19,20 +17,12 @@ def parse_bool(value):
     return v in ("1", "true", "ja", "yes", "y", "x")
 
 
-def read_csv_upload(upload):
-    """Liest eine hochgeladene CSV-Datei. Gibt (reader, fieldnames_map) zurück
-    oder ein (None, error_response)-Tupel im Fehlerfall."""
-    try:
-        raw = upload.read().decode("utf-8-sig")
-    except UnicodeDecodeError:
-        try:
-            upload.stream.seek(0)
-            raw = upload.read().decode("latin-1")
-        except Exception:
-            return None, (jsonify({"error": "Datei konnte nicht gelesen werden"}), 400)
-
+def parse_csv(raw):
+    """Parst CSV-Text und gibt (reader, fieldnames_map, None) zurück oder
+    (None, None, fehlermeldung) im Fehlerfall. `fieldnames_map` bildet die
+    kleingeschriebenen Spaltennamen auf die Originalnamen ab."""
     if not raw.strip():
-        return None, (jsonify({"error": "Datei ist leer"}), 400)
+        return None, None, "Datei ist leer"
 
     sample = raw[:2048]
     try:
@@ -42,10 +32,10 @@ def read_csv_upload(upload):
 
     reader = csv.DictReader(io.StringIO(raw), dialect=dialect)
     if not reader.fieldnames:
-        return None, (jsonify({"error": "Keine Spaltenüberschriften gefunden"}), 400)
+        return None, None, "Keine Spaltenüberschriften gefunden"
 
     fieldnames = {name.strip().lower(): name for name in reader.fieldnames if name}
-    return (reader, fieldnames), None
+    return reader, fieldnames, None
 
 
 def recompute_four_card(conn, user_id):

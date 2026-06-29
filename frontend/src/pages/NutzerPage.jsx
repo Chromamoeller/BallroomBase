@@ -82,7 +82,7 @@ export default function NutzerPage() {
     setExporting(true);
     setError(null);
     try {
-      const { blob, filename } = await api.exportUsers();
+      const { blob, filename } = await api.exportBackup();
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -112,11 +112,10 @@ export default function NutzerPage() {
     setError(null);
     setImportResult(null);
     try {
-      const result = await api.importUsers(file);
+      const result = await api.importBackup(file);
       setImportResult(result);
-      if (result.created > 0) {
-        await load();
-      }
+      // Der Import kann alle Bereiche verändern – Nutzerliste neu laden.
+      await load();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -208,11 +207,22 @@ export default function NutzerPage() {
     }
   }
 
+  const importErrors = importResult
+    ? [
+        ...(importResult.users?.errors || []),
+        ...(importResult.figures?.errors || []),
+        ...(importResult.sequences?.errors || []),
+        ...(importResult.history?.errors || []),
+        ...(importResult.attendance?.errors || []),
+        ...(importResult.fileErrors || []),
+      ]
+    : [];
+
   return (
     <div>
       <PageHeader
         title="Nutzer verwalten"
-        description="Lege neue Teilnehmer oder Administratoren für die Kurse an."
+        description="Lege neue Teilnehmer oder Administratoren an. Export/Import sichert hier alle Abteilungen komplett (ZIP)."
         action={
           <div className="flex items-center gap-2">
             <button
@@ -220,8 +230,8 @@ export default function NutzerPage() {
               onClick={handleExport}
               disabled={exporting}
               className="inline-flex h-10 items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-              aria-label="Nutzer als CSV exportieren"
-              title="Nutzer als CSV exportieren"
+              aria-label="Komplettes Backup aller Abteilungen herunterladen"
+              title="Komplett-Backup herunterladen (alle Abteilungen)"
             >
               <svg
                 width="16"
@@ -244,8 +254,8 @@ export default function NutzerPage() {
               onClick={triggerImport}
               disabled={importing}
               className="inline-flex h-10 items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-              aria-label="Nutzer aus CSV importieren"
-              title="Nutzer aus CSV importieren"
+              aria-label="Komplettes Backup aller Abteilungen hochladen"
+              title="Komplett-Backup hochladen (alle Abteilungen)"
             >
               <svg
                 width="16"
@@ -266,7 +276,7 @@ export default function NutzerPage() {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".csv,text/csv"
+              accept=".zip,application/zip"
               className="hidden"
               onChange={handleImportFile}
             />
@@ -303,21 +313,7 @@ export default function NutzerPage() {
       {importResult && (
         <div className="mb-4 space-y-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
           <div className="flex items-center justify-between">
-            <div>
-              <strong>{importResult.created}</strong> Nutzer importiert
-              {importResult.skipped?.length > 0 && (
-                <>
-                  , <strong>{importResult.skipped.length}</strong> übersprungen
-                  (bereits vorhanden)
-                </>
-              )}
-              {importResult.errors?.length > 0 && (
-                <>
-                  , <strong>{importResult.errors.length}</strong> Fehler
-                </>
-              )}
-              .
-            </div>
+            <div className="font-medium">Backup importiert (alle Abteilungen)</div>
             <button
               type="button"
               onClick={() => setImportResult(null)}
@@ -327,14 +323,49 @@ export default function NutzerPage() {
               ×
             </button>
           </div>
-          {importResult.skipped?.length > 0 && (
-            <div className="text-xs text-emerald-700">
-              Übersprungen: {importResult.skipped.join(", ")}
-            </div>
-          )}
-          {importResult.errors?.length > 0 && (
+          <ul className="space-y-0.5 text-xs">
+            {importResult.users && (
+              <li>
+                Nutzer: <strong>{importResult.users.created}</strong> neu
+                {importResult.users.skipped?.length > 0 &&
+                  `, ${importResult.users.skipped.length} übersprungen`}
+              </li>
+            )}
+            {importResult.figures && (
+              <li>
+                Figuren: <strong>{importResult.figures.created}</strong> neu
+                {importResult.figures.skipped?.length > 0 &&
+                  `, ${importResult.figures.skipped.length} übersprungen`}
+              </li>
+            )}
+            {importResult.sequences && (
+              <li>
+                Folgen: <strong>{importResult.sequences.created}</strong> neu
+                {importResult.sequences.skipped?.length > 0 &&
+                  `, ${importResult.sequences.skipped.length} übersprungen`}
+              </li>
+            )}
+            {importResult.history && (
+              <li>
+                Historie: <strong>{importResult.history.created}</strong> neu
+                {importResult.history.skipped?.length > 0 &&
+                  `, ${importResult.history.skipped.length} übersprungen`}
+              </li>
+            )}
+            {importResult.attendance && (
+              <li>
+                Anwesenheit:{" "}
+                <strong>{importResult.attendance.created}</strong> Termine neu,{" "}
+                <strong>{importResult.attendance.entriesAdded}</strong> Einträge
+                hinzugefügt
+                {importResult.attendance.entriesSkipped > 0 &&
+                  `, ${importResult.attendance.entriesSkipped} übersprungen`}
+              </li>
+            )}
+          </ul>
+          {importErrors.length > 0 && (
             <ul className="list-disc space-y-0.5 pl-5 text-xs text-red-700">
-              {importResult.errors.map((msg, i) => (
+              {importErrors.map((msg, i) => (
                 <li key={i}>{msg}</li>
               ))}
             </ul>
