@@ -588,24 +588,30 @@ export default function FigurenPage() {
                               </span>
                             </div>
                           )}
-                          <div>
-                            <div className="font-medium text-slate-800 dark:text-slate-100">
-                              Count
+                          {f.count && (
+                            <div>
+                              <div className="font-medium text-slate-800 dark:text-slate-100">
+                                Count
+                              </div>
+                              <div>{f.count}</div>
                             </div>
-                            <div>{f.count || "Nicht angegeben"}</div>
-                          </div>
-                          <div>
-                            <div className="font-medium text-slate-800 dark:text-slate-100">
-                              Fußarbeit
+                          )}
+                          {f.footwork && (
+                            <div>
+                              <div className="font-medium text-slate-800 dark:text-slate-100">
+                                Fußarbeit
+                              </div>
+                              <div>{f.footwork}</div>
                             </div>
-                            <div>{f.footwork || "Nicht angegeben"}</div>
-                          </div>
-                          <div>
-                            <div className="font-medium text-slate-800 dark:text-slate-100">
-                              Drehung
+                          )}
+                          {f.amountOfTurn && (
+                            <div>
+                              <div className="font-medium text-slate-800 dark:text-slate-100">
+                                Drehung
+                              </div>
+                              <div>{f.amountOfTurn}</div>
                             </div>
-                            <div>{f.amountOfTurn || "Nicht angegeben"}</div>
-                          </div>
+                          )}
                           {f.description && (
                             <div>
                               <div className="font-medium text-slate-800 dark:text-slate-100">
