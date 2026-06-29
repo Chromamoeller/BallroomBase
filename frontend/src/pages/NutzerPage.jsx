@@ -600,8 +600,9 @@ export default function NutzerPage() {
                 }
               />
               <p className="mt-1 text-xs text-slate-500">
-                Wird beim nächsten Anwesenheits-Update neu aus der Historie
-                berechnet.
+                Setzt den aktuellen Kartenstand. Künftige Anwesenheiten zählen ab
+                hier weiter – bei 4/4 springt die nächste Anwesenheit auf 1/4
+                (neue Karte). Der Wert bleibt erhalten.
               </p>
             </div>
           )}

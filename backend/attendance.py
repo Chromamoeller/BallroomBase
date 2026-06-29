@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from flask import Blueprint, jsonify, request
 
-from _shared import ensure_course_access, recompute_all_four_cards
+from _shared import ensure_course_access, increment_four_card
 from auth import auth_required
 from database import get_connection
 
@@ -158,19 +158,6 @@ def set_four_card_paid(course_id, user_id):
         conn.close()
 
 
-@bp.post("/api/four-cards/<int:course_id>/recompute")
-@auth_required(roles=["admin"])
-def recompute_four_cards(course_id):
-    """Synchronisiert alle 4er-Karten-Snapshots eines Kurses mit der Anwesenheits-Historie."""
-    conn = get_connection()
-    try:
-        recompute_all_four_cards(conn, course_id)
-        conn.commit()
-        return jsonify({"ok": True})
-    finally:
-        conn.close()
-
-
 @bp.get("/api/attendance/<int:course_id>/all")
 @auth_required(roles=["admin"])
 def get_all_attendance(course_id):
@@ -235,9 +222,8 @@ def delete_attendance(course_id, attendance_id):
             (attendance_id,),
         )
         conn.execute("DELETE FROM attendance WHERE id = ?", (attendance_id,))
-
-        recompute_all_four_cards(conn, course_id)
-
+        # Modell A: Löschen eines Termins korrigiert den laufenden Kartenstand
+        # bewusst NICHT automatisch.
         conn.commit()
         return jsonify({"ok": True})
     finally:
@@ -261,6 +247,17 @@ def add_attendance(course_id):
         ).fetchone()
         if existing:
             attendance_id = existing["id"]
+            # Bisherige Markierungen dieses Termins merken, damit bereits
+            # gezählte Anwesenheiten beim erneuten Speichern nicht doppelt
+            # hochgezählt werden (Modell: laufender Zähler).
+            prev_rows = conn.execute(
+                "SELECT user_id, present, hours FROM attendance_entries "
+                "WHERE attendance_id = ?",
+                (attendance_id,),
+            ).fetchall()
+            previous = {
+                r["user_id"]: (r["present"], r["hours"]) for r in prev_rows
+            }
             conn.execute(
                 "DELETE FROM attendance_entries WHERE attendance_id = ?",
                 (attendance_id,),
@@ -271,19 +268,28 @@ def add_attendance(course_id):
                 (course_id, date),
             )
             attendance_id = cur.lastrowid
+            previous = {}
 
         for e in entries:
             user_id = e.get("userId")
             if user_id is None:
                 continue
             present = 1 if e.get("present") else 0
+            hours = None
+            if present:
+                prev_present, prev_hours = previous.get(user_id, (0, None))
+                if prev_present:
+                    # War an diesem Termin schon anwesend -> Label behalten,
+                    # Karte nicht erneut hochzählen.
+                    hours = prev_hours
+                else:
+                    # Neu anwesend -> 4er-Karte um eine Stunde hochzählen.
+                    hours = increment_four_card(conn, user_id)
             conn.execute(
                 "INSERT INTO attendance_entries (attendance_id, user_id, present, hours) "
                 "VALUES (?,?,?,?)",
-                (attendance_id, user_id, present, None),
+                (attendance_id, user_id, present, hours),
             )
-
-        recompute_all_four_cards(conn, course_id)
 
         conn.commit()
         return jsonify({"id": attendance_id}), 201

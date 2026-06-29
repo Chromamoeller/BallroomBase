@@ -3,7 +3,6 @@
 from flask import Blueprint, jsonify, request
 from werkzeug.security import generate_password_hash
 
-from _shared import recompute_four_card
 from auth import auth_required
 from database import get_connection
 
@@ -157,8 +156,15 @@ def update_user(user_id):
                 "has_four_card = ? WHERE id = ?",
                 (username, role, course_id, has_four_card, user_id),
             )
-        recompute_four_card(conn, user_id)
-        if four_card_hours_override is not None and has_four_card:
+        # 4er-Karte (Modell A: laufender Zähler – der manuell gesetzte Wert ist
+        # maßgeblich und wird NICHT aus der Anwesenheits-Historie neu berechnet).
+        if not has_four_card:
+            conn.execute(
+                "UPDATE users SET four_card_hours = 0, four_card_wraps = 0, "
+                "four_card_paid_at = NULL WHERE id = ?",
+                (user_id,),
+            )
+        elif four_card_hours_override is not None:
             conn.execute(
                 "UPDATE users SET four_card_hours = ? WHERE id = ?",
                 (four_card_hours_override, user_id),

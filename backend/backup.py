@@ -13,7 +13,7 @@ from datetime import datetime
 from flask import Blueprint, Response, jsonify, request
 from werkzeug.security import generate_password_hash
 
-from _shared import parse_bool, parse_csv, recompute_all_four_cards
+from _shared import parse_bool, parse_csv
 from auth import auth_required
 from database import get_connection
 
@@ -559,7 +559,6 @@ def _import_attendance(conn, reader, fieldnames, courses_by_name):
     updated_dates = []
     entries_added = 0
     entries_skipped = 0
-    affected_courses = set()
 
     for (course_id, date), entries in grouped.items():
         attendance_id = attendance_by_key.get((course_id, date))
@@ -595,13 +594,11 @@ def _import_attendance(conn, reader, fieldnames, courses_by_name):
             entries_added += 1
             added_here += 1
 
-        if added_here > 0:
-            affected_courses.add(course_id)
-            if was_existing:
-                updated_dates.append(date)
+        if added_here > 0 and was_existing:
+            updated_dates.append(date)
 
-    for course_id in affected_courses:
-        recompute_all_four_cards(conn, course_id)
+    # Modell A: Der Kartenstand (four_card_hours) wird beim Import aus nutzer.csv
+    # übernommen und NICHT aus der importierten Anwesenheit neu berechnet.
 
     return {
         "created": created_dates,
