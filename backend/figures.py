@@ -20,7 +20,7 @@ def get_figures(course_id):
         is_admin = request.current_user["role"] == "admin"
         query = (
             "SELECT f.id, f.name, f.description, f.difficulty, f.video_url, "
-            "f.steps, f.count_steps, f.footwork, "
+            "f.steps, f.steps_lady, f.count_steps, f.footwork, "
             "f.amount_of_turn, f.precedes, f.follows, f.visible, "
             "f.dance_id, d.name AS dance_name "
             "FROM figures f JOIN dances d ON d.id = f.dance_id "
@@ -37,6 +37,7 @@ def get_figures(course_id):
                 "difficulty": r["difficulty"],
                 "videoUrl": r["video_url"],
                 "steps": r["steps"],
+                "stepsLady": r["steps_lady"],
                 "count": r["count_steps"],
                 "footwork": r["footwork"],
                 "amountOfTurn": r["amount_of_turn"],
@@ -65,6 +66,7 @@ def create_figure(course_id):
     difficulty = (data.get("difficulty") or "").strip() or None
     video_url = (data.get("videoUrl") or "").strip() or None
     steps = (data.get("steps") or "").strip() or None
+    steps_lady = (data.get("stepsLady") or "").strip() or None
     count_steps = (data.get("count") or "").strip() or None
     footwork = (data.get("footwork") or "").strip() or None
     amount_of_turn = (data.get("amountOfTurn") or "").strip() or None
@@ -81,9 +83,9 @@ def create_figure(course_id):
 
         cur = conn.execute(
             "INSERT INTO figures (course_id, dance_id, name, description, difficulty, "
-            "video_url, steps, count_steps, footwork, amount_of_turn, "
+            "video_url, steps, steps_lady, count_steps, footwork, amount_of_turn, "
             "precedes, follows, visible) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1)",
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1)",
             (
                 course_id,
                 dance_id,
@@ -92,6 +94,7 @@ def create_figure(course_id):
                 difficulty,
                 video_url,
                 steps,
+                steps_lady,
                 count_steps,
                 footwork,
                 amount_of_turn,
@@ -107,6 +110,7 @@ def create_figure(course_id):
             "difficulty": difficulty,
             "videoUrl": video_url,
             "steps": steps,
+            "stepsLady": steps_lady,
             "count": count_steps,
             "footwork": footwork,
             "amountOfTurn": amount_of_turn,
@@ -133,6 +137,7 @@ def update_figure(course_id, figure_id):
     difficulty = (data.get("difficulty") or "").strip() or None
     video_url = (data.get("videoUrl") or "").strip() or None
     steps = (data.get("steps") or "").strip() or None
+    steps_lady = (data.get("stepsLady") or "").strip() or None
     count_steps = (data.get("count") or "").strip() or None
     footwork = (data.get("footwork") or "").strip() or None
     amount_of_turn = (data.get("amountOfTurn") or "").strip() or None
@@ -156,7 +161,7 @@ def update_figure(course_id, figure_id):
 
         conn.execute(
             "UPDATE figures SET dance_id = ?, name = ?, description = ?, "
-            "difficulty = ?, video_url = ?, steps = ?, "
+            "difficulty = ?, video_url = ?, steps = ?, steps_lady = ?, "
             "count_steps = ?, footwork = ?, amount_of_turn = ?, "
             "precedes = ?, follows = ? WHERE id = ?",
             (
@@ -166,6 +171,7 @@ def update_figure(course_id, figure_id):
                 difficulty,
                 video_url,
                 steps,
+                steps_lady,
                 count_steps,
                 footwork,
                 amount_of_turn,
@@ -178,7 +184,7 @@ def update_figure(course_id, figure_id):
 
         row = conn.execute(
             "SELECT f.id, f.name, f.description, f.difficulty, f.video_url, "
-            "f.steps, f.count_steps, f.footwork, "
+            "f.steps, f.steps_lady, f.count_steps, f.footwork, "
             "f.amount_of_turn, f.precedes, f.follows, f.visible, "
             "f.dance_id, d.name AS dance_name "
             "FROM figures f JOIN dances d ON d.id = f.dance_id "
@@ -192,6 +198,7 @@ def update_figure(course_id, figure_id):
             "difficulty": row["difficulty"],
             "videoUrl": row["video_url"],
             "steps": row["steps"],
+            "stepsLady": row["steps_lady"],
             "count": row["count_steps"],
             "footwork": row["footwork"],
             "amountOfTurn": row["amount_of_turn"],

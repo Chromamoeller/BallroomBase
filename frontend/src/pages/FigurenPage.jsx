@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { api } from "../api/client.js";
 import DanceTabs from "../components/DanceTabs.jsx";
@@ -7,18 +7,149 @@ import Modal from "../components/Modal.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 
+const stepDirectionMeta = (direction) => {
+  const d = (direction || "").toLowerCase();
+  if (d.includes("drehung"))
+    return { type: d.includes("rechts") ? "turnRight" : "turnLeft" };
+  if (d.includes("am platz") || d.trim() === "") return { type: "place" };
+  let angle = 0;
+  if (d.includes("diagonal vor links")) angle = -45;
+  else if (d.includes("diagonal vor rechts")) angle = 45;
+  else if (d.includes("diagonal zurück links")) angle = -135;
+  else if (d.includes("diagonal zurück rechts")) angle = 135;
+  else if (d.includes("zurück")) angle = 180;
+  else if (d.includes("seitwärts links")) angle = -90;
+  else if (d.includes("seitwärts rechts")) angle = 90;
+  else if (d.includes("vor")) angle = 0;
+  else return { type: "place" };
+  return { type: "arrow", angle };
+};
+
+function Footprint({ side = "left", className }) {
+  return (
+    <svg
+      viewBox="0 0 32 44"
+      className={className}
+      fill="currentColor"
+      style={side === "right" ? { transform: "scaleX(-1)" } : undefined}
+      aria-hidden="true"
+    >
+      <path d="M20.5 26.5c.6 3.2.9 5.4.4 8.2-.5 3-2.4 5.3-5.4 5.3-3.2 0-4.9-2.3-5.2-5.3-.3-2.7.1-4.8.7-8 .5-2.7 3-4.3 5.1-4.2 2 .1 3.9 1.4 4.4 4z" />
+      <ellipse cx="8.5" cy="10" rx="2.6" ry="3.2" />
+      <ellipse cx="14.5" cy="6.5" rx="2.8" ry="3.4" />
+      <ellipse cx="20.5" cy="7.5" rx="2.6" ry="3.2" />
+      <ellipse cx="25" cy="11.5" rx="2.2" ry="2.8" />
+    </svg>
+  );
+}
+
+function DirectionIcon({ direction, className }) {
+  const meta = stepDirectionMeta(direction);
+  if (meta.type === "place") {
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        className={className}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        aria-hidden="true"
+      >
+        <circle cx="12" cy="12" r="4" />
+      </svg>
+    );
+  }
+  if (meta.type === "turnLeft" || meta.type === "turnRight") {
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        className={className}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        style={meta.type === "turnRight" ? { transform: "scaleX(-1)" } : undefined}
+        aria-hidden="true"
+      >
+        <polyline points="1 4 1 10 7 10" />
+        <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+      </svg>
+    );
+  }
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ transform: `rotate(${meta.angle}deg)` }}
+      aria-hidden="true"
+    >
+      <path d="M12 20V6" />
+      <path d="M6 12l6-6 6 6" />
+    </svg>
+  );
+}
+
+function RelationList({ title, value }) {
+  const items = (value || "")
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  return (
+    <div>
+      <div className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+        {title}
+      </div>
+      {items.length === 0 ? (
+        <div className="mt-2 text-sm text-slate-400 dark:text-slate-500">
+          Keine hinterlegt
+        </div>
+      ) : (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {items.map((item) => (
+            <span
+              key={item}
+              className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm font-medium text-slate-700 dark:border-slate-600 dark:bg-slate-900/40 dark:text-slate-200"
+            >
+              {item}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DetailFact({ title, value }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/40">
+      <div className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+        {title}
+      </div>
+      <div className="mt-1 text-base font-semibold text-slate-900 dark:text-slate-100">
+        {value || "–"}
+      </div>
+    </div>
+  );
+}
+
 export default function FigurenPage() {
   const { user, isAdmin } = useAuth();
   const [dances, setDances] = useState([]);
   const [figures, setFigures] = useState([]);
   const [activeDance, setActiveDance] = useState(null);
+  const [detailFigureId, setDetailFigureId] = useState(null);
   const [selectedVideoFigure, setSelectedVideoFigure] = useState(null);
   const [visibilityModalOpen, setVisibilityModalOpen] = useState(false);
   const [visibilityItems, setVisibilityItems] = useState([]);
   const [visibilitySaving, setVisibilitySaving] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createSaving, setCreateSaving] = useState(false);
-  const DIFFICULTY_OPTIONS = ["Leicht", "Mittel", "Schwer"];
   const FOOT_OPTIONS = ["Linker Fuß", "Rechter Fuß"];
   const DIRECTION_OPTIONS = [
     "Vor",
@@ -34,6 +165,8 @@ export default function FigurenPage() {
     "Drehung rechts",
   ];
   const emptyStep = { foot: "", direction: "" };
+  // difficulty/footwork werden nicht mehr gepflegt, beim Bearbeiten aber
+  // durchgereicht, damit importierte Werte nicht verloren gehen.
   const emptyForm = {
     danceId: "",
     name: "",
@@ -54,38 +187,55 @@ export default function FigurenPage() {
   const [deleting, setDeleting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [expandedFigures, setExpandedFigures] = useState(() => new Set());
-  const [stepsOpenFor, setStepsOpenFor] = useState(() => new Set());
+  const [viewStepsFigure, setViewStepsFigure] = useState(null);
+  const [viewStepsSection, setViewStepsSection] = useState("men");
   const [infoPanelOpen, setInfoPanelOpen] = useState(false);
   const [stepsModalFigure, setStepsModalFigure] = useState(null);
   const [stepsModalRows, setStepsModalRows] = useState([]);
-  const [stepsModalFoot, setStepsModalFoot] = useState(null);
+  const [stepsModalLadyRows, setStepsModalLadyRows] = useState([]);
+  const [stepsModalActive, setStepsModalActive] = useState(null);
   const [stepsModalSaving, setStepsModalSaving] = useState(false);
 
-  const toggleFigureExpanded = (id) => {
-    setExpandedFigures((current) => {
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const toggleStepsOpen = (id) => {
-    setStepsOpenFor((current) => {
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const parseStepsForDisplay = (str) => {
-    if (!str) return [];
-    return str
+  const parseStepsString = (str) => {
+    if (!str) return [{ ...emptyStep }];
+    const parts = str
       .split(",")
-      .map((p) => p.trim().replace(/^\d+\.\s*/, ""))
-      .filter((s) => s.length > 0);
+      .map((p) => p.trim())
+      .filter(Boolean);
+    if (parts.length === 0) return [{ ...emptyStep }];
+    return parts.map((part) => {
+      const noNum = part.replace(/^\d+\.\s*/, "");
+      const matchedFoot = FOOT_OPTIONS.find((f) => noNum.startsWith(f));
+      if (matchedFoot) {
+        return {
+          foot: matchedFoot,
+          direction: noNum.slice(matchedFoot.length).trim(),
+        };
+      }
+      return { foot: "", direction: noNum };
+    });
+  };
+
+  const stepRowsOf = (str) =>
+    parseStepsString(str).filter((r) => r.foot || r.direction);
+
+  // Video öffnet sich anstelle des Figuren-Modals; beim Schließen geht es
+  // wieder zurück zur Figur.
+  const openVideo = (figure) => {
+    if (!figure) return;
+    setDetailFigureId(null);
+    setSelectedVideoFigure(figure);
+  };
+
+  const closeVideo = () => {
+    const figure = selectedVideoFigure;
+    setSelectedVideoFigure(null);
+    if (figure) setDetailFigureId(figure.id);
+  };
+
+  const openViewSteps = (figure) => {
+    setViewStepsSection(stepRowsOf(figure.steps).length > 0 ? "men" : "lady");
+    setViewStepsFigure(figure);
   };
 
   useEffect(() => {
@@ -117,6 +267,11 @@ export default function FigurenPage() {
         (f) => f.danceId === activeDance && (isAdmin || f.visible),
       ),
     [figures, activeDance, isAdmin],
+  );
+
+  const detailFigure = useMemo(
+    () => figures.find((f) => f.id === detailFigureId) ?? null,
+    [figures, detailFigureId],
   );
 
   const activeDanceName = useMemo(
@@ -165,26 +320,6 @@ export default function FigurenPage() {
       .map((p) => p.trim())
       .filter(Boolean);
     return parts.length > 0 ? parts : [""];
-  };
-
-  const parseStepsString = (str) => {
-    if (!str) return [{ ...emptyStep }];
-    const parts = str
-      .split(",")
-      .map((p) => p.trim())
-      .filter(Boolean);
-    if (parts.length === 0) return [{ ...emptyStep }];
-    return parts.map((part) => {
-      const noNum = part.replace(/^\d+\.\s*/, "");
-      const matchedFoot = FOOT_OPTIONS.find((f) => noNum.startsWith(f));
-      if (matchedFoot) {
-        return {
-          foot: matchedFoot,
-          direction: noNum.slice(matchedFoot.length).trim(),
-        };
-      }
-      return { foot: "", direction: noNum };
-    });
   };
 
   const openEditModal = (figure) => {
@@ -239,33 +374,6 @@ export default function FigurenPage() {
       .filter((r) => r.length > 0)
       .join(", ");
 
-  const updateStepRow = (index, field, value) => {
-    setCreateForm((current) => ({
-      ...current,
-      stepRows: current.stepRows.map((row, i) =>
-        i === index ? { ...row, [field]: value } : row,
-      ),
-    }));
-  };
-
-  const addStepRow = (index) => {
-    setCreateForm((current) => {
-      const next = [...current.stepRows];
-      next.splice(index + 1, 0, { ...emptyStep });
-      return { ...current, stepRows: next };
-    });
-  };
-
-  const removeStepRow = (index) => {
-    setCreateForm((current) => {
-      if (current.stepRows.length <= 1) return current;
-      return {
-        ...current,
-        stepRows: current.stepRows.filter((_, i) => i !== index),
-      };
-    });
-  };
-
   const buildStepsString = (rows) =>
     rows
       .map((r) => `${r.foot} ${r.direction}`.trim())
@@ -275,26 +383,37 @@ export default function FigurenPage() {
 
   const openStepsModal = (figure) => {
     setStepsModalFigure(figure);
-    setStepsModalRows(
-      parseStepsString(figure.steps).filter((r) => r.foot || r.direction),
-    );
-    setStepsModalFoot(null);
+    setStepsModalRows(stepRowsOf(figure.steps));
+    setStepsModalLadyRows(stepRowsOf(figure.stepsLady));
+    setStepsModalActive(null);
   };
 
   const closeStepsModal = () => {
     if (stepsModalSaving) return;
     setStepsModalFigure(null);
-    setStepsModalFoot(null);
+    setStepsModalActive(null);
+  };
+
+  const stepsSetRows = (section) =>
+    section === "lady" ? setStepsModalLadyRows : setStepsModalRows;
+
+  const stepsModalToggleFoot = (section, foot) => {
+    setStepsModalActive((prev) =>
+      prev && prev.section === section && prev.foot === foot
+        ? null
+        : { section, foot },
+    );
   };
 
   const stepsModalAddDirection = (direction) => {
-    if (!stepsModalFoot) return;
-    setStepsModalRows((prev) => [...prev, { foot: stepsModalFoot, direction }]);
-    setStepsModalFoot(null);
+    if (!stepsModalActive) return;
+    const { section, foot } = stepsModalActive;
+    stepsSetRows(section)((prev) => [...prev, { foot, direction }]);
+    setStepsModalActive(null);
   };
 
-  const stepsModalRemoveRow = (index) => {
-    setStepsModalRows((prev) => prev.filter((_, i) => i !== index));
+  const stepsModalRemoveRow = (section, index) => {
+    stepsSetRows(section)((prev) => prev.filter((_, i) => i !== index));
   };
 
   const saveStepsModal = async () => {
@@ -316,6 +435,7 @@ export default function FigurenPage() {
           precedes: stepsModalFigure.precedes || "",
           follows: stepsModalFigure.follows || "",
           steps: buildStepsString(stepsModalRows),
+          stepsLady: buildStepsString(stepsModalLadyRows),
         },
       );
       setFigures((current) =>
@@ -324,7 +444,7 @@ export default function FigurenPage() {
         ),
       );
       setStepsModalFigure(null);
-      setStepsModalFoot(null);
+      setStepsModalActive(null);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -405,6 +525,7 @@ export default function FigurenPage() {
       setFigures((current) =>
         current.filter((f) => f.id !== deletingFigure.id),
       );
+      if (detailFigureId === deletingFigure.id) setDetailFigureId(null);
       setDeletingFigure(null);
     } catch (err) {
       setError(err.message);
@@ -495,265 +616,72 @@ export default function FigurenPage() {
               Für diesen Tanz sind noch keine Figuren hinterlegt.
             </div>
           ) : (
-            <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {visibleFigures.map((f) => {
-                const isExpanded = expandedFigures.has(f.id);
-                const showSteps = stepsOpenFor.has(f.id);
-                const stepItems = parseStepsForDisplay(f.steps);
-                return (
-                  <Fragment key={f.id}>
-                    <div className="card flex flex-col p-5">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-                            {f.name}
-                          </h3>
-                          {isAdmin && !f.visible && (
-                            <div className="mt-1 text-xs font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400">
-                              Ausgeblendet
-                            </div>
-                          )}
-                        </div>
-                        {isAdmin && (
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => openEditModal(f)}
-                              aria-label="Bearbeiten"
-                              title="Bearbeiten"
-                              className="text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-200"
-                            >
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="h-5 w-5"
-                                viewBox="0 0 20 20"
-                                fill="currentColor"
-                              >
-                                <path d="M17.414 2.586a2 2 0 0 0-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 0 0 0-2.828z" />
-                                <path d="M2 15a1 1 0 0 0 1 1h3v-2H4v-2H2v3z" />
-                              </svg>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setDeletingFigure(f)}
-                              aria-label="Löschen"
-                              title="Löschen"
-                              className="text-slate-400 hover:text-red-600 dark:text-slate-500 dark:hover:text-red-400"
-                            >
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="h-5 w-5"
-                                viewBox="0 0 20 20"
-                                fill="currentColor"
-                              >
-                                <path
-                                  fillRule="evenodd"
-                                  d="M9 2a1 1 0 0 0-.894.553L7.382 4H4a1 1 0 0 0 0 2h12a1 1 0 1 0 0-2h-3.382l-.724-1.447A1 1 0 0 0 11 2H9zM5 8a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v8a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8zm3 2a1 1 0 0 1 2 0v5a1 1 0 1 1-2 0v-5zm4 0a1 1 0 1 1 2 0v5a1 1 0 1 1-2 0v-5z"
-                                  clipRule="evenodd"
-                                />
-                              </svg>
-                            </button>
-                          </div>
-                        )}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {visibleFigures.map((f) => (
+                <div
+                  key={f.id}
+                  className="card relative flex items-center justify-between gap-3 p-5 transition hover:border-brand-300 hover:shadow-md dark:hover:border-brand-500"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setDetailFigureId(f.id)}
+                    className="absolute inset-0 rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2"
+                    aria-label={`${f.name} – Details anzeigen`}
+                  />
+                  <div className="pointer-events-none min-w-0">
+                    <h3 className="truncate text-base font-semibold text-slate-900 dark:text-slate-100">
+                      {f.name}
+                    </h3>
+                    {isAdmin && !f.visible && (
+                      <div className="mt-1 text-xs font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400">
+                        Ausgeblendet
                       </div>
+                    )}
+                  </div>
 
-                      <div className="mt-4 grid gap-3 text-sm text-slate-600 dark:text-slate-300">
-                        {f.precedes && (
-                          <div>
-                            <div className="font-medium text-slate-800 dark:text-slate-100">
-                              Vorangehende Figuren
-                            </div>
-                            <div>{f.precedes}</div>
-                          </div>
-                        )}
-                        {f.follows && (
-                          <div>
-                            <div className="font-medium text-slate-800 dark:text-slate-100">
-                              Folgende Figuren
-                            </div>
-                            <div>{f.follows}</div>
-                          </div>
-                        )}
-                      </div>
-
-                      {isExpanded && (
-                        <div className="mt-4 grid gap-3 border-t border-slate-100 pt-4 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">
-                          {f.difficulty && (
-                            <div>
-                              <div className="font-medium text-slate-800 dark:text-slate-100">
-                                Schwierigkeit
-                              </div>
-                              <span className="mt-1 inline-flex items-center rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-900/40 dark:text-brand-200">
-                                {f.difficulty}
-                              </span>
-                            </div>
-                          )}
-                          {f.count && (
-                            <div>
-                              <div className="font-medium text-slate-800 dark:text-slate-100">
-                                Count
-                              </div>
-                              <div>{f.count}</div>
-                            </div>
-                          )}
-                          {f.footwork && (
-                            <div>
-                              <div className="font-medium text-slate-800 dark:text-slate-100">
-                                Fußarbeit
-                              </div>
-                              <div>{f.footwork}</div>
-                            </div>
-                          )}
-                          {f.amountOfTurn && (
-                            <div>
-                              <div className="font-medium text-slate-800 dark:text-slate-100">
-                                Drehung
-                              </div>
-                              <div>{f.amountOfTurn}</div>
-                            </div>
-                          )}
-                          {f.description && (
-                            <div>
-                              <div className="font-medium text-slate-800 dark:text-slate-100">
-                                Beschreibung
-                              </div>
-                              <p>{f.description}</p>
-                            </div>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => setSelectedVideoFigure(f)}
-                            className="btn-secondary mt-1 self-start"
-                          >
-                            Video abspielen
-                          </button>
-                        </div>
-                      )}
-
-                      {(isAdmin || stepItems.length > 0) && (
-                        <button
-                          type="button"
-                          onClick={() => toggleStepsOpen(f.id)}
-                          aria-pressed={showSteps}
-                          className="btn-secondary mt-4 self-start"
-                        >
-                          {showSteps
-                            ? "Schritte ausblenden"
-                            : "Schritte anzeigen"}
-                        </button>
-                      )}
-
+                  {isAdmin && (
+                    <div className="relative flex flex-shrink-0 items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => toggleFigureExpanded(f.id)}
-                        aria-expanded={isExpanded}
-                        aria-label={
-                          isExpanded ? "Weniger anzeigen" : "Mehr anzeigen"
-                        }
-                        title={
-                          isExpanded ? "Weniger anzeigen" : "Mehr anzeigen"
-                        }
-                        className="mt-4 flex w-full items-center justify-center rounded-md py-1 text-slate-400 transition hover:bg-slate-50 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+                        onClick={() => openEditModal(f)}
+                        aria-label="Bearbeiten"
+                        title="Bearbeiten"
+                        className="text-slate-400 transition hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-200"
                       >
                         <svg
-                          width="20"
-                          height="20"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          className={`transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-5 w-5"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
                         >
-                          <path d="M6 9l6 6 6-6" />
+                          <path d="M17.414 2.586a2 2 0 0 0-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 0 0 0-2.828z" />
+                          <path d="M2 15a1 1 0 0 0 1 1h3v-2H4v-2H2v3z" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeletingFigure(f)}
+                        aria-label="Löschen"
+                        title="Löschen"
+                        className="text-slate-400 transition hover:text-red-600 dark:text-slate-500 dark:hover:text-red-400"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-5 w-5"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M9 2a1 1 0 0 0-.894.553L7.382 4H4a1 1 0 0 0 0 2h12a1 1 0 1 0 0-2h-3.382l-.724-1.447A1 1 0 0 0 11 2H9zM5 8a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v8a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8zm3 2a1 1 0 0 1 2 0v5a1 1 0 1 1-2 0v-5zm4 0a1 1 0 1 1 2 0v5a1 1 0 1 1-2 0v-5z"
+                            clipRule="evenodd"
+                          />
                         </svg>
                       </button>
                     </div>
-
-                    {showSteps && (
-                      <div className="card flex flex-col p-5">
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <div className="text-xs font-semibold uppercase tracking-widest text-brand-600 dark:text-brand-300">
-                              Schritte
-                            </div>
-                            <h3 className="mt-1 text-base font-semibold text-slate-900 dark:text-slate-100">
-                              {f.name}
-                            </h3>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            {isAdmin && (
-                              <button
-                                type="button"
-                                onClick={() => openStepsModal(f)}
-                                aria-label="Schritte hinzufügen"
-                                title="Schritte hinzufügen"
-                                className="text-slate-400 hover:text-brand-600 dark:text-slate-500 dark:hover:text-brand-400"
-                              >
-                                <svg
-                                  width="20"
-                                  height="20"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  aria-hidden="true"
-                                >
-                                  <path d="M12 5v14M5 12h14" />
-                                </svg>
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => toggleStepsOpen(f.id)}
-                              aria-label="Schritte ausblenden"
-                              title="Schritte ausblenden"
-                              className="text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-200"
-                            >
-                              <svg
-                                width="20"
-                                height="20"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                aria-hidden="true"
-                              >
-                                <path d="M18 6 6 18M6 6l12 12" />
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
-
-                        {stepItems.length === 0 ? (
-                          <div className="mt-4 text-sm text-slate-500 dark:text-slate-400">
-                            Für diese Figur sind keine Schritte hinterlegt.
-                          </div>
-                        ) : (
-                          <ol className="mt-4 flex flex-col items-start gap-2">
-                            {stepItems.map((step, idx) => (
-                              <li
-                                key={idx}
-                                className="inline-flex w-fit max-w-full items-center gap-2 rounded-lg border-2 border-slate-300 bg-white px-2.5 py-1 text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
-                              >
-                                <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 border-slate-300 text-[10px] font-bold leading-none text-slate-600 dark:border-slate-600 dark:text-slate-300">
-                                  {idx + 1}
-                                </span>
-                                <span>{step}</span>
-                              </li>
-                            ))}
-                          </ol>
-                        )}
-                      </div>
-                    )}
-                  </Fragment>
-                );
-              })}
+                  )}
+                </div>
+              ))}
             </div>
           )}
 
@@ -764,34 +692,116 @@ export default function FigurenPage() {
           />
 
           <Modal
+            open={Boolean(detailFigure)}
+            onClose={() => setDetailFigureId(null)}
+            title={detailFigure?.name ?? "Figur"}
+            footer={
+              <>
+                {(stepRowsOf(detailFigure?.steps).length > 0 ||
+                  stepRowsOf(detailFigure?.stepsLady).length > 0 ||
+                  isAdmin) && (
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => {
+                      const fig = detailFigure;
+                      setDetailFigureId(null);
+                      openViewSteps(fig);
+                    }}
+                  >
+                    Schritte anzeigen
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => openVideo(detailFigure)}
+                >
+                  <svg
+                    className="mr-2 h-4 w-4"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16zM8.5 6.8a.6.6 0 0 1 .92-.5l4.2 2.7a.6.6 0 0 1 0 1l-4.2 2.7a.6.6 0 0 1-.92-.5V6.8z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  Video
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => setDetailFigureId(null)}
+                >
+                  Schließen
+                </button>
+              </>
+            }
+          >
+            {detailFigure && (
+              <div className="space-y-6">
+                <RelationList
+                  title="Vorherige Figuren"
+                  value={detailFigure.precedes}
+                />
+                <RelationList
+                  title="Folgende Figuren"
+                  value={detailFigure.follows}
+                />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <DetailFact
+                    title="Schrittanzahl"
+                    value={detailFigure.count}
+                  />
+                  <DetailFact
+                    title="Drehungsumfang"
+                    value={detailFigure.amountOfTurn}
+                  />
+                </div>
+              </div>
+            )}
+          </Modal>
+
+          <Modal
             open={Boolean(selectedVideoFigure)}
-            onClose={() => setSelectedVideoFigure(null)}
+            onClose={closeVideo}
             title={selectedVideoFigure?.name ?? "Video"}
             footer={
-              <button
-                onClick={() => setSelectedVideoFigure(null)}
-                className="btn-secondary"
-              >
+              <button onClick={closeVideo} className="btn-secondary">
                 Schließen
               </button>
             }
           >
             {selectedVideoFigure?.videoUrl ? (
-              <div className="space-y-4">
-                <video
-                  controls
-                  className="w-full rounded-2xl bg-slate-900"
-                  src={selectedVideoFigure.videoUrl}
-                />
-                <p className="text-sm text-slate-600 dark:text-slate-300">
-                  Falls das Video geladen wird, kannst du hier die Aufnahme
-                  sehen.
-                </p>
-              </div>
+              <video
+                controls
+                autoPlay
+                playsInline
+                className="w-full rounded-2xl bg-slate-900"
+                src={selectedVideoFigure.videoUrl}
+              />
             ) : (
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
-                Dieses Video ist derzeit nicht verfügbar. Sobald ein Link
-                hinterlegt ist, kannst du es hier abspielen.
+              <div className="flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/60 px-6 py-10 text-center dark:border-slate-700 dark:bg-slate-900/40">
+                <svg
+                  className="h-10 w-10 text-slate-300 dark:text-slate-600"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="m22 8-6 4 6 4V8z" />
+                  <rect x="2" y="6" width="14" height="12" rx="2" />
+                  <path d="M3 3l18 18" />
+                </svg>
+                <p className="text-sm text-slate-600 dark:text-slate-300">
+                  Leider ist hierzu noch kein Video vorhanden.
+                </p>
               </div>
             )}
           </Modal>
@@ -866,27 +876,6 @@ export default function FigurenPage() {
                   placeholder="z.B. Damen-Solodrehung"
                   required
                 />
-              </div>
-
-              <div>
-                <label className="label" htmlFor="figure-difficulty">
-                  Schwierigkeit
-                </label>
-                <select
-                  id="figure-difficulty"
-                  className="input"
-                  value={createForm.difficulty}
-                  onChange={(e) =>
-                    updateCreateField("difficulty", e.target.value)
-                  }
-                >
-                  <option value="">Nicht angegeben</option>
-                  {DIFFICULTY_OPTIONS.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                </select>
               </div>
 
               <div>
@@ -1066,7 +1055,7 @@ export default function FigurenPage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="label" htmlFor="figure-count">
-                    Count
+                    Anzahl
                   </label>
                   <input
                     id="figure-count"
@@ -1074,40 +1063,24 @@ export default function FigurenPage() {
                     className="input"
                     value={createForm.count}
                     onChange={(e) => updateCreateField("count", e.target.value)}
-                    placeholder="z.B. 1 2 3 4 5 6"
+                    placeholder="z.B. 6"
                   />
                 </div>
                 <div>
-                  <label className="label" htmlFor="figure-footwork">
-                    Fußarbeit
+                  <label className="label" htmlFor="figure-turn">
+                    Drehungsumfang
                   </label>
                   <input
-                    id="figure-footwork"
+                    id="figure-turn"
                     type="text"
                     className="input"
-                    value={createForm.footwork}
+                    value={createForm.amountOfTurn}
                     onChange={(e) =>
-                      updateCreateField("footwork", e.target.value)
+                      updateCreateField("amountOfTurn", e.target.value)
                     }
-                    placeholder="z.B. Ballen, ganze Sohle"
+                    placeholder="z.B. 1/2 nach links"
                   />
                 </div>
-              </div>
-
-              <div>
-                <label className="label" htmlFor="figure-turn">
-                  Drehung
-                </label>
-                <input
-                  id="figure-turn"
-                  type="text"
-                  className="input"
-                  value={createForm.amountOfTurn}
-                  onChange={(e) =>
-                    updateCreateField("amountOfTurn", e.target.value)
-                  }
-                  placeholder="z.B. 1/2 nach links"
-                />
               </div>
 
               {createError && (
@@ -1175,92 +1148,307 @@ export default function FigurenPage() {
               </>
             }
           >
-            <div className="space-y-5">
-              {stepsModalRows.length > 0 && (
-                <ol className="flex flex-col gap-2">
-                  {stepsModalRows.map((row, idx) => (
-                    <li
-                      key={idx}
-                      className="flex items-center gap-2 rounded-lg border-2 border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                    >
-                      <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 border-slate-300 text-[10px] font-bold leading-none text-slate-600 dark:border-slate-600 dark:text-slate-300">
-                        {idx + 1}
-                      </span>
-                      <span className="flex-1">
-                        {row.foot} {row.direction}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => stepsModalRemoveRow(idx)}
-                        className="text-slate-400 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400"
-                        aria-label="Schritt entfernen"
-                      >
-                        <svg
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M18 6 6 18M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </li>
-                  ))}
-                </ol>
-              )}
-
-              <div className="space-y-3">
-                <div className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
-                  Neuer Schritt
-                </div>
-                <div className="flex gap-3">
-                  {["Linker Fuß", "Rechter Fuß"].map((foot) => (
-                    <button
-                      key={foot}
-                      type="button"
-                      onClick={() =>
-                        setStepsModalFoot(stepsModalFoot === foot ? null : foot)
-                      }
-                      className={`flex-1 rounded-xl border-2 py-3 text-sm font-semibold transition ${
-                        stepsModalFoot === foot
-                          ? "border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-400 dark:bg-brand-900/30 dark:text-brand-300"
-                          : "border-slate-200 bg-white text-slate-700 hover:border-brand-300 hover:bg-brand-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-brand-500"
-                      }`}
-                    >
-                      {foot === "Linker Fuß"
-                        ? "L – Linker Fuß"
-                        : "R – Rechter Fuß"}
-                    </button>
-                  ))}
-                </div>
-
-                {stepsModalFoot && (
-                  <div className="flex flex-wrap gap-2">
-                    {[
-                      "Vor",
-                      "Zurück",
-                      "Links",
-                      "Rechts",
-                      "Am Platz",
-                      "Tip",
-                    ].map((dir) => (
-                      <button
-                        key={dir}
-                        type="button"
-                        onClick={() => stepsModalAddDirection(dir)}
-                        className="rounded-lg border-2 border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-brand-400 hover:bg-brand-50 hover:text-brand-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-brand-500 dark:hover:bg-brand-900/30 dark:hover:text-brand-300"
-                      >
-                        {dir}
-                      </button>
-                    ))}
+            <div className="space-y-6">
+              {[
+                {
+                  section: "men",
+                  title: "Männerschritte",
+                  rows: stepsModalRows,
+                },
+                {
+                  section: "lady",
+                  title: "Damenschritte",
+                  rows: stepsModalLadyRows,
+                },
+              ].map(({ section, title, rows }) => (
+                <div
+                  key={section}
+                  className="space-y-3 rounded-xl border-2 border-slate-200 p-4 dark:border-slate-700"
+                >
+                  <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                    {title}
                   </div>
-                )}
-              </div>
+
+                  {rows.length > 0 && (
+                    <ol className="flex flex-col gap-2">
+                      {rows.map((row, idx) => (
+                        <li
+                          key={idx}
+                          className="flex items-center gap-2 rounded-lg border-2 border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                        >
+                          <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 border-slate-300 text-[10px] font-bold leading-none text-slate-600 dark:border-slate-600 dark:text-slate-300">
+                            {idx + 1}
+                          </span>
+                          <span className="flex-1">
+                            {row.foot} {row.direction}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => stepsModalRemoveRow(section, idx)}
+                            className="text-slate-400 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400"
+                            aria-label="Schritt entfernen"
+                          >
+                            <svg
+                              width="16"
+                              height="16"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M18 6 6 18M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+
+                  <div className="space-y-3">
+                    <div className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                      Neuer Schritt
+                    </div>
+                    <div className="flex gap-3">
+                      {FOOT_OPTIONS.map((foot) => {
+                        const isActive =
+                          stepsModalActive?.section === section &&
+                          stepsModalActive?.foot === foot;
+                        return (
+                          <button
+                            key={foot}
+                            type="button"
+                            onClick={() => stepsModalToggleFoot(section, foot)}
+                            className={`flex-1 rounded-xl border-2 py-3 text-sm font-semibold transition ${
+                              isActive
+                                ? "border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-400 dark:bg-brand-900/30 dark:text-brand-300"
+                                : "border-slate-200 bg-white text-slate-700 hover:border-brand-300 hover:bg-brand-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-brand-500"
+                            }`}
+                          >
+                            {foot === "Linker Fuß"
+                              ? "L – Linker Fuß"
+                              : "R – Rechter Fuß"}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {stepsModalActive?.section === section && (
+                      <div className="flex flex-wrap gap-2">
+                        {DIRECTION_OPTIONS.map((dir) => (
+                          <button
+                            key={dir}
+                            type="button"
+                            onClick={() => stepsModalAddDirection(dir)}
+                            className="rounded-lg border-2 border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-brand-400 hover:bg-brand-50 hover:text-brand-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-brand-500 dark:hover:bg-brand-900/30 dark:hover:text-brand-300"
+                          >
+                            {dir}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
+          </Modal>
+
+          <Modal
+            open={Boolean(viewStepsFigure)}
+            onClose={() => setViewStepsFigure(null)}
+            title={`Schritte – ${viewStepsFigure?.name ?? ""}`}
+            footer={
+              <>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => {
+                      const fig = viewStepsFigure;
+                      setViewStepsFigure(null);
+                      openStepsModal(fig);
+                    }}
+                  >
+                    Bearbeiten
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => setViewStepsFigure(null)}
+                >
+                  Schließen
+                </button>
+              </>
+            }
+          >
+            {viewStepsFigure &&
+              (() => {
+                const menRows = stepRowsOf(viewStepsFigure.steps);
+                const ladyRows = stepRowsOf(viewStepsFigure.stepsLady);
+                const hasMen = menRows.length > 0;
+                const hasLady = ladyRows.length > 0;
+
+                if (!hasMen && !hasLady) {
+                  return (
+                    <div className="flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/60 px-6 py-10 text-center dark:border-slate-700 dark:bg-slate-900/40">
+                      <Footprint
+                        side="left"
+                        className="h-10 w-10 text-slate-300 dark:text-slate-600"
+                      />
+                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                        Für diese Figur sind noch keine Schritte hinterlegt.
+                      </p>
+                    </div>
+                  );
+                }
+
+                const showTabs = hasMen && hasLady;
+                const activeSection = showTabs
+                  ? viewStepsSection
+                  : hasMen
+                    ? "men"
+                    : "lady";
+                const rows = activeSection === "lady" ? ladyRows : menRows;
+                const metaChips = [
+                  viewStepsFigure.count && {
+                    label: "Schrittanzahl",
+                    value: viewStepsFigure.count,
+                  },
+                  viewStepsFigure.amountOfTurn && {
+                    label: "Drehungsumfang",
+                    value: viewStepsFigure.amountOfTurn,
+                  },
+                ].filter(Boolean);
+
+                return (
+                  <div className="space-y-5">
+                    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 p-5 text-white shadow-sm">
+                      <Footprint
+                        side="left"
+                        className="pointer-events-none absolute -right-4 -top-4 h-24 w-24 rotate-12 text-white/10"
+                      />
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/70">
+                        Schrittfolge
+                      </div>
+                      <div className="mt-1 text-xl font-bold">
+                        {viewStepsFigure.name}
+                      </div>
+                      {metaChips.length > 0 && (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {metaChips.map((chip) => (
+                            <span
+                              key={chip.label}
+                              className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-xs font-medium backdrop-blur"
+                            >
+                              <span className="text-white/60">
+                                {chip.label}
+                              </span>
+                              <span className="font-semibold">
+                                {chip.value}
+                              </span>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {showTabs && (
+                      <div className="flex gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-900">
+                        {[
+                          { key: "men", label: "Herr", symbol: "♂" },
+                          { key: "lady", label: "Dame", symbol: "♀" },
+                        ].map((tab) => {
+                          const active = activeSection === tab.key;
+                          return (
+                            <button
+                              key={tab.key}
+                              type="button"
+                              onClick={() => setViewStepsSection(tab.key)}
+                              className={`flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-sm font-semibold transition ${
+                                active
+                                  ? "bg-white text-brand-700 shadow-sm dark:bg-slate-700 dark:text-brand-200"
+                                  : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                              }`}
+                            >
+                              <span className="text-base leading-none">
+                                {tab.symbol}
+                              </span>
+                              {tab.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    <ol className="space-y-0">
+                      {rows.map((step, idx) => {
+                        const isLeft = /link/i.test(step.foot);
+                        const isLast = idx === rows.length - 1;
+                        const meta = stepDirectionMeta(step.direction);
+                        const rotate = meta.type === "arrow" ? meta.angle : 0;
+                        return (
+                          <li key={idx} className="relative flex gap-4 pb-4 last:pb-0">
+                            <div className="relative flex w-14 flex-shrink-0 justify-center">
+                              {!isLast && (
+                                <span className="absolute -bottom-4 left-1/2 top-14 w-px -translate-x-1/2 border-l-2 border-dashed border-slate-200 dark:border-slate-700" />
+                              )}
+                              <div
+                                className={`relative flex h-14 w-14 items-center justify-center rounded-2xl ring-1 ${
+                                  isLeft
+                                    ? "bg-brand-50 ring-brand-200 dark:bg-brand-950/40 dark:ring-brand-900/70"
+                                    : "bg-rose-50 ring-rose-200 dark:bg-rose-950/40 dark:ring-rose-900/70"
+                                }`}
+                              >
+                                <span
+                                  className="block transition-transform"
+                                  style={{ transform: `rotate(${rotate}deg)` }}
+                                >
+                                  <Footprint
+                                    side={isLeft ? "left" : "right"}
+                                    className={`h-7 w-7 ${
+                                      isLeft
+                                        ? "text-brand-500 dark:text-brand-400"
+                                        : "text-rose-500 dark:text-rose-400"
+                                    }`}
+                                  />
+                                </span>
+                                <span className="absolute -left-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-white text-[10px] font-bold text-slate-600 shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-600">
+                                  {idx + 1}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-1 flex-col justify-center">
+                              <div
+                                className={`text-[11px] font-semibold uppercase tracking-wider ${
+                                  isLeft
+                                    ? "text-brand-600 dark:text-brand-300"
+                                    : "text-rose-500 dark:text-rose-300"
+                                }`}
+                              >
+                                {isLeft ? "Linker Fuß" : "Rechter Fuß"}
+                              </div>
+                              <div className="mt-1 flex items-center gap-2">
+                                <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-600">
+                                  <DirectionIcon
+                                    direction={step.direction}
+                                    className="h-3.5 w-3.5 text-slate-500 dark:text-slate-300"
+                                  />
+                                </span>
+                                <span className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                                  {step.direction || "Am Platz"}
+                                </span>
+                              </div>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ol>
+                  </div>
+                );
+              })()}
           </Modal>
 
           <Modal

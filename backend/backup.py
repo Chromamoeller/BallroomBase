@@ -29,8 +29,8 @@ USER_COLUMNS = [
 ]
 FIGURE_COLUMNS = [
     "course", "dance", "name", "description", "difficulty", "video_url",
-    "steps", "count", "footwork", "amount_of_turn", "precedes", "follows",
-    "visible",
+    "steps", "steps_lady", "count", "footwork", "amount_of_turn", "precedes",
+    "follows", "visible",
 ]
 SEQUENCE_COLUMNS = ["course", "dance", "name", "figures", "description", "visible"]
 HISTORY_COLUMNS = ["course", "date", "warmup", "lesson", "cooldown"]
@@ -88,8 +88,9 @@ def _export_users(conn):
 def _export_figures(conn):
     rows = conn.execute(
         "SELECT c.name AS course_name, d.name AS dance_name, f.name, "
-        "f.description, f.difficulty, f.video_url, f.steps, f.count_steps, "
-        "f.footwork, f.amount_of_turn, f.precedes, f.follows, f.visible "
+        "f.description, f.difficulty, f.video_url, f.steps, f.steps_lady, "
+        "f.count_steps, f.footwork, f.amount_of_turn, f.precedes, f.follows, "
+        "f.visible "
         "FROM figures f JOIN dances d ON d.id = f.dance_id "
         "JOIN courses c ON c.id = f.course_id "
         "ORDER BY c.name, d.id, f.name"
@@ -103,6 +104,7 @@ def _export_figures(conn):
             r["difficulty"] or "",
             r["video_url"] or "",
             r["steps"] or "",
+            r["steps_lady"] or "",
             r["count_steps"] or "",
             r["footwork"] or "",
             r["amount_of_turn"] or "",
@@ -351,9 +353,9 @@ def _import_figures(conn, reader, fieldnames, courses_by_name, dances_by_name):
 
         conn.execute(
             "INSERT INTO figures (course_id, dance_id, name, description, "
-            "difficulty, video_url, steps, count_steps, footwork, "
+            "difficulty, video_url, steps, steps_lady, count_steps, footwork, "
             "amount_of_turn, precedes, follows, visible) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 course_id,
                 dance_id,
@@ -362,6 +364,7 @@ def _import_figures(conn, reader, fieldnames, courses_by_name, dances_by_name):
                 cell(row, "difficulty") or None,
                 cell(row, "video_url") or None,
                 cell(row, "steps") or None,
+                cell(row, "steps_lady") or None,
                 cell(row, "count") or None,
                 cell(row, "footwork") or None,
                 cell(row, "amount_of_turn") or None,

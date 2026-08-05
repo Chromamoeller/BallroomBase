@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS figures (
     difficulty TEXT,
     video_url TEXT,
     steps TEXT,
+    steps_lady TEXT,
     count_steps TEXT,
     footwork TEXT,
     amount_of_turn TEXT,
@@ -134,6 +135,7 @@ def init_db():
             conn.execute("ALTER TABLE users ADD COLUMN four_card_wraps INTEGER NOT NULL DEFAULT 0")
         for column, definition in [
             ("steps", "TEXT"),
+            ("steps_lady", "TEXT"),
             ("count_steps", "TEXT"),
             ("footwork", "TEXT"),
             ("amount_of_turn", "TEXT"),
