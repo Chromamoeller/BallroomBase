@@ -12,10 +12,10 @@ export default function HomePage() {
         <div className="mb-3 text-xs font-semibold uppercase tracking-[0.3em] text-brand-600">
           DanceFans
         </div>
-        <h1 className="text-4xl font-semibold text-slate-900 sm:text-5xl">
+        <h1 className="text-4xl font-semibold text-slate-900 dark:text-slate-100 sm:text-5xl">
           Willkommen bei DanceFans
         </h1>
-        <p className="mx-auto mt-6 max-w-2xl text-base text-slate-600 sm:text-lg">
+        <p className="mx-auto mt-6 max-w-2xl text-base text-slate-600 dark:text-slate-300 sm:text-lg">
           Die Plattform für die Organisation deines Tanzkurses. Verwalte Figuren,
           Folgen, Unterrichtshistorie und Anwesenheit zentral und übersichtlich.
         </p>
@@ -24,7 +24,7 @@ export default function HomePage() {
           <Link to="/login" className="btn-primary px-6 py-3 text-base">
             Zum Login
           </Link>
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             Bitte melde dich an, um fortzufahren.
           </p>
         </div>
@@ -36,8 +36,8 @@ export default function HomePage() {
             { title: "Anwesenheit", text: "Erfasse Stundenstand und Anwesenheit deiner Teilnehmer." },
           ].map((c) => (
             <div key={c.title} className="card p-5 text-left">
-              <h3 className="text-sm font-semibold text-slate-900">{c.title}</h3>
-              <p className="mt-2 text-sm text-slate-600">{c.text}</p>
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{c.title}</h3>
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{c.text}</p>
             </div>
           ))}
         </div>

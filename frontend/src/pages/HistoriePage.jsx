@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { api } from "../api/client.js";
+import Alert from "../components/Alert.jsx";
 import Modal from "../components/Modal.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -147,14 +148,10 @@ export default function HistoriePage() {
         }
       />
 
-      {error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
+      {error && <Alert className="mb-4">{error}</Alert>}
 
       {loading ? (
-        <div className="text-sm text-slate-500">Lade Historie…</div>
+        <div className="text-sm text-slate-500 dark:text-slate-400">Lade Historie…</div>
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           {sortedHistory.map((h) => (
@@ -303,11 +300,9 @@ export default function HistoriePage() {
         }
       >
         {allLoading ? (
-          <div className="text-sm text-slate-500">Lade Einträge…</div>
+          <div className="text-sm text-slate-500 dark:text-slate-400">Lade Einträge…</div>
         ) : allError ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {allError}
-          </div>
+          <Alert>{allError}</Alert>
         ) : allEntries.length === 0 ? (
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
             Es sind noch keine Einträge vorhanden.
@@ -397,7 +392,7 @@ export default function HistoriePage() {
           </>
         }
       >
-        <p className="text-sm text-slate-700">
+        <p className="text-sm text-slate-700 dark:text-slate-200">
           Soll der Eintrag vom{" "}
           <span className="font-semibold">{formatDate(deletingEntry?.date)}</span>{" "}
           wirklich gelöscht werden? Diese Aktion kann nicht rückgängig gemacht werden.

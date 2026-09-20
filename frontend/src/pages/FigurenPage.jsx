@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { api } from "../api/client.js";
+import Alert from "../components/Alert.jsx";
 import DanceTabs from "../components/DanceTabs.jsx";
 import DanceInfoPanel from "../components/DanceInfoPanel.jsx";
 import Modal from "../components/Modal.jsx";
@@ -586,11 +587,9 @@ export default function FigurenPage() {
       />
 
       {loading ? (
-        <div className="text-sm text-slate-500">Lade Figuren…</div>
+        <div className="text-sm text-slate-500 dark:text-slate-400">Lade Figuren…</div>
       ) : error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
+        <Alert>{error}</Alert>
       ) : (
         <>
           <DanceTabs
@@ -1083,11 +1082,7 @@ export default function FigurenPage() {
                 </div>
               </div>
 
-              {createError && (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                  {createError}
-                </div>
-              )}
+              {createError && <Alert compact>{createError}</Alert>}
               <button type="submit" className="hidden" aria-hidden="true" />
             </form>
           </Modal>
@@ -1467,26 +1462,26 @@ export default function FigurenPage() {
           >
             <div className="space-y-3">
               {visibilityItems.length === 0 ? (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
                   Keine Figuren zum Verwalten vorhanden.
                 </div>
               ) : (
                 visibilityItems.map((item) => (
                   <label
                     key={item.id}
-                    className="flex cursor-pointer items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
+                    className="flex cursor-pointer items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/40"
                   >
                     <input
                       type="checkbox"
                       checked={item.visible}
                       onChange={() => toggleVisibility(item.id)}
-                      className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-400"
+                      className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-400 dark:border-slate-500 dark:bg-slate-700"
                     />
                     <div>
-                      <div className="font-medium text-slate-900">
+                      <div className="font-medium text-slate-900 dark:text-slate-100">
                         {item.name}
                       </div>
-                      <div className="text-sm text-slate-500">
+                      <div className="text-sm text-slate-500 dark:text-slate-400">
                         {item.danceName}
                       </div>
                     </div>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
+import Alert from "../components/Alert.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 
 export default function LoginPage() {
@@ -28,8 +29,8 @@ export default function LoginPage() {
           <Link to="/" className="text-xs font-semibold uppercase tracking-[0.3em] text-brand-600">
             DanceFans
           </Link>
-          <h1 className="mt-2 text-2xl font-semibold text-slate-900">Anmelden</h1>
-          <p className="mt-2 text-sm text-slate-500">
+          <h1 className="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-100">Anmelden</h1>
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
             Bitte melde dich an, um fortzufahren.
           </p>
         </div>
@@ -60,16 +61,14 @@ export default function LoginPage() {
           </div>
 
           {error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {error}
-            </div>
+            <Alert compact>{error}</Alert>
           )}
 
           <button className="btn-primary w-full" disabled={loading}>
             {loading ? "Anmelden…" : "Anmelden"}
           </button>
 
-          <Link to="/" className="block text-center text-sm text-slate-500 hover:text-brand-700">
+          <Link to="/" className="block text-center text-sm text-slate-500 hover:text-brand-700 dark:text-slate-400 dark:hover:text-brand-300">
             Zurück zur Startseite
           </Link>
         </form>

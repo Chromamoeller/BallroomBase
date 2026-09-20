@@ -257,82 +257,82 @@ function MusicIcon() {
 const DANCE_STYLES = {
   "Langsamer Walzer": {
     icon: <CoupleIcon />,
-    iconBg: "bg-violet-100",
-    iconColor: "text-violet-600",
+    iconBg: "bg-violet-100 dark:bg-violet-900/40",
+    iconColor: "text-violet-600 dark:text-violet-300",
     underline: "bg-violet-500",
-    border: "border-violet-500",
+    border: "border-violet-500 dark:border-violet-400",
   },
   Tango: {
     icon: <TangoIcon />,
-    iconBg: "bg-blue-100",
-    iconColor: "text-blue-600",
+    iconBg: "bg-blue-100 dark:bg-blue-900/40",
+    iconColor: "text-blue-600 dark:text-blue-300",
     underline: "bg-blue-500",
-    border: "border-blue-500",
+    border: "border-blue-500 dark:border-blue-400",
   },
   "Wiener Walzer": {
     icon: <WaltzIcon />,
-    iconBg: "bg-teal-100",
-    iconColor: "text-teal-600",
+    iconBg: "bg-teal-100 dark:bg-teal-900/40",
+    iconColor: "text-teal-600 dark:text-teal-300",
     underline: "bg-teal-500",
-    border: "border-teal-500",
+    border: "border-teal-500 dark:border-teal-400",
   },
   "Cha Cha Cha": {
     icon: <FanIcon />,
-    iconBg: "bg-pink-100",
-    iconColor: "text-pink-600",
+    iconBg: "bg-pink-100 dark:bg-pink-900/40",
+    iconColor: "text-pink-600 dark:text-pink-300",
     underline: "bg-pink-500",
-    border: "border-pink-500",
+    border: "border-pink-500 dark:border-pink-400",
   },
   Rumba: {
     icon: <MaracasIcon />,
-    iconBg: "bg-red-100",
-    iconColor: "text-red-500",
+    iconBg: "bg-red-100 dark:bg-red-900/40",
+    iconColor: "text-red-500 dark:text-red-300",
     underline: "bg-red-500",
-    border: "border-red-500",
+    border: "border-red-500 dark:border-red-400",
   },
   Samba: {
     icon: <DrumIcon />,
-    iconBg: "bg-orange-100",
-    iconColor: "text-orange-500",
+    iconBg: "bg-orange-100 dark:bg-orange-900/40",
+    iconColor: "text-orange-500 dark:text-orange-300",
     underline: "bg-orange-500",
-    border: "border-orange-500",
+    border: "border-orange-500 dark:border-orange-400",
   },
   Jive: {
     icon: <TopHatIcon />,
-    iconBg: "bg-purple-100",
-    iconColor: "text-purple-600",
+    iconBg: "bg-purple-100 dark:bg-purple-900/40",
+    iconColor: "text-purple-600 dark:text-purple-300",
     underline: "bg-purple-500",
-    border: "border-purple-500",
+    border: "border-purple-500 dark:border-purple-400",
   },
   "Paso Doble": {
     icon: <CapeIcon />,
-    iconBg: "bg-rose-100",
-    iconColor: "text-rose-500",
+    iconBg: "bg-rose-100 dark:bg-rose-900/40",
+    iconColor: "text-rose-500 dark:text-rose-300",
     underline: "bg-rose-500",
-    border: "border-rose-500",
+    border: "border-rose-500 dark:border-rose-400",
   },
   Discofox: {
     icon: <DiscoBallIcon />,
-    iconBg: "bg-sky-100",
-    iconColor: "text-sky-600",
+    iconBg: "bg-sky-100 dark:bg-sky-900/40",
+    iconColor: "text-sky-600 dark:text-sky-300",
     underline: "bg-sky-500",
-    border: "border-sky-500",
+    border: "border-sky-500 dark:border-sky-400",
   },
   Foxtrott: {
     icon: <FoxIcon />,
-    iconBg: "bg-amber-100",
-    iconColor: "text-amber-600",
+    iconBg: "bg-amber-100 dark:bg-amber-900/40",
+    iconColor: "text-amber-600 dark:text-amber-300",
     underline: "bg-amber-500",
-    border: "border-amber-500",
+    border: "border-amber-500 dark:border-amber-400",
   },
 };
 
 const DEFAULT_STYLE = {
   icon: <MusicIcon />,
-  iconBg: "bg-slate-100",
-  iconColor: "text-slate-500",
+  iconBg: "bg-slate-100 dark:bg-slate-700",
+  iconColor: "text-slate-500 dark:text-slate-300",
   underline: "bg-slate-400",
-  border: "border-slate-400",
+  border: "border-slate-400 dark:border-slate-500",
 };
 
 export default function DanceTabs({ dances, activeId, onSelect }) {
@@ -348,11 +348,11 @@ export default function DanceTabs({ dances, activeId, onSelect }) {
             onClick={() => onSelect(d.id)}
             aria-pressed={isActive}
             className={[
-              "group flex flex-col items-center justify-center rounded-2xl bg-white p-4 shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2",
+              "group flex flex-col items-center justify-center rounded-2xl bg-white p-4 shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 dark:bg-slate-800",
               "border-2",
               isActive
                 ? `${style.border} shadow-md`
-                : "border-transparent hover:border-slate-200 hover:shadow-md",
+                : "border-transparent hover:border-slate-200 hover:shadow-md dark:hover:border-slate-600",
             ].join(" ")}
           >
             <div
@@ -360,7 +360,7 @@ export default function DanceTabs({ dances, activeId, onSelect }) {
             >
               {style.icon}
             </div>
-            <div className="mt-3 text-center text-sm font-semibold text-slate-900">
+            <div className="mt-3 text-center text-sm font-semibold text-slate-900 dark:text-slate-100">
               {d.name}
             </div>
             <div

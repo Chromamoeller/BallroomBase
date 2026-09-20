@@ -249,15 +249,18 @@ def add_attendance(course_id):
             attendance_id = existing["id"]
             # Bisherige Markierungen dieses Termins merken, damit bereits
             # gezählte Anwesenheiten beim erneuten Speichern nicht doppelt
-            # hochgezählt werden (Modell: laufender Zähler).
+            # hochgezählt werden (Modell: laufender Zähler). Maßgeblich ist
+            # dabei das gespeicherte `hours`-Label, nicht der zuletzt
+            # gespeicherte `present`-Status: würde stattdessen `present`
+            # geprüft, zählt ein Admin, der jemanden versehentlich abhakt
+            # und in einem späteren Speichervorgang wieder anhakt, die
+            # Karte für dasselbe Datum ein zweites Mal hoch.
             prev_rows = conn.execute(
-                "SELECT user_id, present, hours FROM attendance_entries "
+                "SELECT user_id, hours FROM attendance_entries "
                 "WHERE attendance_id = ?",
                 (attendance_id,),
             ).fetchall()
-            previous = {
-                r["user_id"]: (r["present"], r["hours"]) for r in prev_rows
-            }
+            previous_hours = {r["user_id"]: r["hours"] for r in prev_rows}
             conn.execute(
                 "DELETE FROM attendance_entries WHERE attendance_id = ?",
                 (attendance_id,),
@@ -268,23 +271,26 @@ def add_attendance(course_id):
                 (course_id, date),
             )
             attendance_id = cur.lastrowid
-            previous = {}
+            previous_hours = {}
 
         for e in entries:
             user_id = e.get("userId")
             if user_id is None:
                 continue
             present = 1 if e.get("present") else 0
-            hours = None
-            if present:
-                prev_present, prev_hours = previous.get(user_id, (0, None))
-                if prev_present:
-                    # War an diesem Termin schon anwesend -> Label behalten,
-                    # Karte nicht erneut hochzählen.
-                    hours = prev_hours
-                else:
-                    # Neu anwesend -> 4er-Karte um eine Stunde hochzählen.
-                    hours = increment_four_card(conn, user_id)
+            prev_hours = previous_hours.get(user_id)
+            if prev_hours is not None:
+                # Für dieses Datum wurde die Karte bereits einmal hochgezählt
+                # (unabhängig davon, ob die Anwesenheit zwischenzeitlich
+                # wieder entfernt wurde) -> Label beibehalten, nicht erneut
+                # zählen.
+                hours = prev_hours
+            elif present:
+                # Für dieses Datum noch nie gezählt und jetzt anwesend ->
+                # 4er-Karte um eine Stunde hochzählen.
+                hours = increment_four_card(conn, user_id)
+            else:
+                hours = None
             conn.execute(
                 "INSERT INTO attendance_entries (attendance_id, user_id, present, hours) "
                 "VALUES (?,?,?,?)",

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
 
 import { api } from "../api/client.js";
+import Alert from "./Alert.jsx";
 import Modal from "./Modal.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useTheme } from "../context/ThemeContext.jsx";
@@ -183,15 +184,11 @@ function ChangePasswordModal({ open, onClose }) {
             required
           />
         </div>
-        {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-900/30 dark:text-red-200">
-            {error}
-          </div>
-        )}
+        {error && <Alert compact>{error}</Alert>}
         {success && (
-          <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-900/60 dark:bg-green-900/30 dark:text-green-200">
+          <Alert variant="success" compact>
             Passwort wurde geändert.
-          </div>
+          </Alert>
         )}
       </form>
     </Modal>

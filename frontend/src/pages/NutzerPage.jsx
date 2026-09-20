@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { api } from "../api/client.js";
+import Alert from "../components/Alert.jsx";
 import Modal from "../components/Modal.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -214,6 +215,7 @@ export default function NutzerPage() {
         ...(importResult.sequences?.errors || []),
         ...(importResult.history?.errors || []),
         ...(importResult.attendance?.errors || []),
+        ...(importResult.programs?.errors || []),
         ...(importResult.fileErrors || []),
       ]
     : [];
@@ -229,7 +231,7 @@ export default function NutzerPage() {
               type="button"
               onClick={handleExport}
               disabled={exporting}
-              className="inline-flex h-10 items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-10 items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
               aria-label="Komplettes Backup aller Abteilungen herunterladen"
               title="Komplett-Backup herunterladen (alle Abteilungen)"
             >
@@ -253,7 +255,7 @@ export default function NutzerPage() {
               type="button"
               onClick={triggerImport}
               disabled={importing}
-              className="inline-flex h-10 items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-10 items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
               aria-label="Komplettes Backup aller Abteilungen hochladen"
               title="Komplett-Backup hochladen (alle Abteilungen)"
             >
@@ -304,20 +306,16 @@ export default function NutzerPage() {
         }
       />
 
-      {error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
+      {error && <Alert className="mb-4">{error}</Alert>}
 
       {importResult && (
-        <div className="mb-4 space-y-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+        <Alert variant="success" className="mb-4 space-y-2">
           <div className="flex items-center justify-between">
             <div className="font-medium">Backup importiert (alle Abteilungen)</div>
             <button
               type="button"
               onClick={() => setImportResult(null)}
-              className="text-emerald-700 hover:text-emerald-900"
+              className="text-emerald-700 hover:text-emerald-900 dark:text-emerald-300 dark:hover:text-emerald-100"
               aria-label="Schließen"
             >
               ×
@@ -362,65 +360,72 @@ export default function NutzerPage() {
                   `, ${importResult.attendance.entriesSkipped} übersprungen`}
               </li>
             )}
+            {importResult.programs && (
+              <li>
+                Kurse: <strong>{importResult.programs.created}</strong> neu
+                {importResult.programs.skipped?.length > 0 &&
+                  `, ${importResult.programs.skipped.length} übersprungen`}
+              </li>
+            )}
           </ul>
           {importErrors.length > 0 && (
-            <ul className="list-disc space-y-0.5 pl-5 text-xs text-red-700">
+            <ul className="list-disc space-y-0.5 pl-5 text-xs text-red-700 dark:text-red-300">
               {importErrors.map((msg, i) => (
                 <li key={i}>{msg}</li>
               ))}
             </ul>
           )}
-        </div>
+        </Alert>
       )}
 
       {loading ? (
-        <div className="text-sm text-slate-500">Lade Nutzer…</div>
+        <div className="text-sm text-slate-500 dark:text-slate-400">Lade Nutzer…</div>
       ) : users.length === 0 ? (
-        <div className="card p-6 text-sm text-slate-500">
+        <div className="card p-6 text-sm text-slate-500 dark:text-slate-400">
           Es sind noch keine Nutzer angelegt.
         </div>
       ) : (
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200">
-              <thead className="bg-slate-50">
+            <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+              <thead className="bg-slate-50 dark:bg-slate-900/40">
                 <tr>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Benutzername
                   </th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Rolle
                   </th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Kurs
                   </th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     4er-Karte
                   </th>
-                  <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Aktionen
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 bg-white">
+              <tbody className="divide-y divide-slate-100 bg-white dark:divide-slate-700 dark:bg-slate-800">
                 {users.map((u) => (
-                  <tr key={u.id} className="hover:bg-slate-50">
-                    <td className="px-5 py-3 text-sm font-medium text-slate-900">
+                  <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                    <td className="px-5 py-3 text-sm font-medium text-slate-900 dark:text-slate-100">
                       {u.username}
                     </td>
-                    <td className="px-5 py-3 text-sm text-slate-700">
+                    <td className="px-5 py-3 text-sm text-slate-700 dark:text-slate-200">
                       {u.role === "admin" ? "Administrator" : "Teilnehmer"}
                     </td>
-                    <td className="px-5 py-3 text-sm text-slate-700">
+                    <td className="px-5 py-3 text-sm text-slate-700 dark:text-slate-200">
                       {u.courseName}
                     </td>
-                    <td className="px-5 py-3 text-sm text-slate-700">
+                    <td className="px-5 py-3 text-sm text-slate-700 dark:text-slate-200">
                       {u.hasFourCard ? (
-                        <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
+                        <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">
                           Ja ({u.fourCardHours}/4)
                         </span>
                       ) : (
-                        <span className="text-xs text-slate-500">—</span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">—</span>
                       )}
                     </td>
                     <td className="px-5 py-3 text-right">
@@ -430,7 +435,7 @@ export default function NutzerPage() {
                           onClick={() => openEdit(u)}
                           aria-label="Bearbeiten"
                           title="Bearbeiten"
-                          className="text-slate-400 hover:text-slate-700"
+                          className="text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-200"
                         >
                           <svg
                             xmlns="http://www.w3.org/2000/svg"
@@ -452,7 +457,7 @@ export default function NutzerPage() {
                               ? "Du kannst dich nicht selbst löschen"
                               : "Löschen"
                           }
-                          className="text-slate-400 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:text-slate-400"
+                          className="text-slate-400 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:text-slate-400 dark:text-slate-500 dark:hover:text-red-400 dark:disabled:hover:text-slate-500"
                         >
                           <svg
                             xmlns="http://www.w3.org/2000/svg"
@@ -570,12 +575,12 @@ export default function NutzerPage() {
               ))}
             </select>
           </div>
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
             <input
               type="checkbox"
               checked={form.hasFourCard}
               onChange={(e) => updateField("hasFourCard", e.target.checked)}
-              className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+              className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 dark:border-slate-500 dark:bg-slate-700"
             />
             Hat eine 4er-Karte
           </label>
@@ -599,7 +604,7 @@ export default function NutzerPage() {
                   )
                 }
               />
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                 Setzt den aktuellen Kartenstand. Künftige Anwesenheiten zählen ab
                 hier weiter – bei 4/4 springt die nächste Anwesenheit auf 1/4
                 (neue Karte). Der Wert bleibt erhalten.
@@ -607,11 +612,7 @@ export default function NutzerPage() {
             </div>
           )}
 
-          {formError && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {formError}
-            </div>
-          )}
+          {formError && <Alert compact>{formError}</Alert>}
           <button type="submit" className="hidden" aria-hidden="true" />
         </form>
       </Modal>
@@ -639,7 +640,7 @@ export default function NutzerPage() {
           </>
         }
       >
-        <p className="text-sm text-slate-700">
+        <p className="text-sm text-slate-700 dark:text-slate-200">
           Soll der Nutzer{" "}
           <span className="font-semibold">{deletingUser?.username}</span>{" "}
           wirklich gelöscht werden? Alle Anwesenheitseinträge dieses Nutzers

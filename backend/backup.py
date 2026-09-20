@@ -35,6 +35,10 @@ FIGURE_COLUMNS = [
 SEQUENCE_COLUMNS = ["course", "dance", "name", "figures", "description", "visible"]
 HISTORY_COLUMNS = ["course", "date", "warmup", "lesson", "cooldown"]
 ATTENDANCE_COLUMNS = ["course", "date", "username", "present"]
+PROGRAM_COLUMNS = [
+    "program_name", "time", "start_date", "hours",
+    "participant_name", "participant_paid",
+]
 
 # Dateiname in der ZIP -> interner Bereichsschlüssel.
 ZIP_FILES = {
@@ -43,6 +47,7 @@ ZIP_FILES = {
     "folgen.csv": "sequences",
     "historie.csv": "history",
     "anwesenheit.csv": "attendance",
+    "kurse.csv": "programs",
 }
 
 
@@ -175,6 +180,29 @@ def _export_attendance(conn):
     ])
 
 
+def _export_course_programs(conn):
+    programs = conn.execute(
+        "SELECT id, name, time, start_date, hours FROM course_programs "
+        "ORDER BY id"
+    ).fetchall()
+    rows = []
+    for p in programs:
+        participants = conn.execute(
+            "SELECT name, paid FROM course_program_participants "
+            "WHERE program_id = ? ORDER BY id",
+            (p["id"],),
+        ).fetchall()
+        base = [p["name"], p["time"] or "", p["start_date"] or "", p["hours"] if p["hours"] is not None else ""]
+        if not participants:
+            # Programm ohne Teilnehmer: trotzdem eine Zeile, sonst geht das
+            # Programm selbst beim Export verloren.
+            rows.append(base + ["", ""])
+        else:
+            for participant in participants:
+                rows.append(base + [participant["name"], "1" if participant["paid"] else "0"])
+    return _csv_bytes(PROGRAM_COLUMNS, rows)
+
+
 @bp.get("/api/backup/export")
 @auth_required(roles=["admin"])
 def export_backup():
@@ -186,6 +214,7 @@ def export_backup():
             "folgen.csv": _export_sequences(conn),
             "historie.csv": _export_history(conn),
             "anwesenheit.csv": _export_attendance(conn),
+            "kurse.csv": _export_course_programs(conn),
         }
     finally:
         conn.close()
@@ -612,6 +641,71 @@ def _import_attendance(conn, reader, fieldnames, courses_by_name):
     }
 
 
+def _import_course_programs(conn, reader, fieldnames):
+    cell = _cell_factory(fieldnames)
+
+    existing = conn.execute("SELECT name FROM course_programs").fetchall()
+    existing_names = {r["name"].strip().lower() for r in existing}
+
+    # Zeilen nach Programmname gruppieren (mehrere Zeilen = mehrere
+    # Teilnehmer desselben Programms).
+    grouped = {}
+    order = []
+    errors = []
+    for idx, row in enumerate(reader, start=2):
+        name = cell(row, "program_name")
+        if not name:
+            errors.append(f"Kurse Zeile {idx}: Name fehlt")
+            continue
+        key = name.strip().lower()
+        if key not in grouped:
+            grouped[key] = {
+                "name": name,
+                "time": cell(row, "time"),
+                "start_date": cell(row, "start_date"),
+                "hours": cell(row, "hours"),
+                "participants": [],
+            }
+            order.append(key)
+        participant_name = cell(row, "participant_name")
+        if participant_name:
+            grouped[key]["participants"].append(
+                (participant_name, parse_bool(cell(row, "participant_paid")))
+            )
+
+    created = 0
+    skipped = []
+    for key in order:
+        program = grouped[key]
+        if key in existing_names:
+            skipped.append(program["name"])
+            continue
+
+        hours = None
+        if program["hours"]:
+            try:
+                hours = int(program["hours"])
+            except ValueError:
+                hours = None
+
+        cur = conn.execute(
+            "INSERT INTO course_programs (name, time, start_date, hours) "
+            "VALUES (?,?,?,?)",
+            (program["name"], program["time"] or None, program["start_date"] or None, hours),
+        )
+        program_id = cur.lastrowid
+        for p_name, p_paid in program["participants"]:
+            conn.execute(
+                "INSERT INTO course_program_participants (program_id, name, paid) "
+                "VALUES (?,?,?)",
+                (program_id, p_name, 1 if p_paid else 0),
+            )
+        existing_names.add(key)
+        created += 1
+
+    return {"created": created, "skipped": skipped, "errors": errors}
+
+
 @bp.post("/api/backup/import")
 @auth_required(roles=["admin"])
 def import_backup():
@@ -686,6 +780,9 @@ def import_backup():
             result["attendance"] = _import_attendance(
                 conn, reader, fieldnames, courses_by_name
             )
+        if "programs" in parsed:
+            reader, fieldnames = parsed["programs"]
+            result["programs"] = _import_course_programs(conn, reader, fieldnames)
 
         conn.commit()
     finally:

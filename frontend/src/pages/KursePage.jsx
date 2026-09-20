@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { api } from "../api/client.js";
+import Alert from "../components/Alert.jsx";
 import Modal from "../components/Modal.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 
@@ -192,11 +193,7 @@ export default function KursePage() {
         }
       />
 
-      {error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-900/30 dark:text-red-200">
-          {error}
-        </div>
-      )}
+      {error && <Alert className="mb-4">{error}</Alert>}
 
       {loading ? (
         <div className="text-sm text-slate-500 dark:text-slate-400">
@@ -490,11 +487,7 @@ export default function KursePage() {
             </div>
           </div>
 
-          {formError && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-900/30 dark:text-red-200">
-              {formError}
-            </div>
-          )}
+          {formError && <Alert compact>{formError}</Alert>}
           <button type="submit" className="hidden" aria-hidden="true" />
         </form>
       </Modal>

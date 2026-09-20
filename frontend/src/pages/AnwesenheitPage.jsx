@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { api } from "../api/client.js";
+import Alert from "../components/Alert.jsx";
 import Modal from "../components/Modal.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -198,21 +199,17 @@ export default function AnwesenheitPage() {
         }
       />
 
-      {error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
+      {error && <Alert className="mb-4">{error}</Alert>}
 
       {data.myCard && (
         <div
           className={[
             "mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm",
             data.myCard.paid
-              ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-900/30 dark:text-emerald-200"
               : data.myCard.needsPayment
-                ? "border-amber-200 bg-amber-50 text-amber-900"
-                : "border-slate-200 bg-slate-50 text-slate-700",
+                ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-900/30 dark:text-amber-200"
+                : "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-200",
           ].join(" ")}
         >
           <div className="min-w-0">
@@ -231,10 +228,10 @@ export default function AnwesenheitPage() {
             className={[
               "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
               data.myCard.paid
-                ? "bg-emerald-100 text-emerald-800"
+                ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200"
                 : data.myCard.needsPayment
-                  ? "bg-amber-100 text-amber-800"
-                  : "bg-slate-200 text-slate-700",
+                  ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+                  : "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200",
             ].join(" ")}
           >
             {data.myCard.paid
@@ -247,44 +244,44 @@ export default function AnwesenheitPage() {
       )}
 
       {loading ? (
-        <div className="text-sm text-slate-500">Lade Anwesenheit…</div>
+        <div className="text-sm text-slate-500 dark:text-slate-400">Lade Anwesenheit…</div>
       ) : data.users.length === 0 ? (
-        <div className="card p-6 text-sm text-slate-500">
+        <div className="card p-6 text-sm text-slate-500 dark:text-slate-400">
           Für diesen Kurs sind keine Teilnehmer hinterlegt.
         </div>
       ) : (
         <div className="card overflow-x-auto">
-          <table className="w-full min-w-[480px] table-fixed divide-y divide-slate-200">
+          <table className="w-full min-w-[480px] table-fixed divide-y divide-slate-200 dark:divide-slate-700">
             <colgroup>
               <col className="w-32 sm:w-40" />
               {data.dates.map((d) => (
                 <col key={d.id} />
               ))}
             </colgroup>
-            <thead className="bg-slate-50">
+            <thead className="bg-slate-50 dark:bg-slate-900/40">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Teilnehmer
                 </th>
                 {data.dates.map((d) => (
                   <th
                     key={d.id}
-                    className="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-500"
+                    className="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400"
                   >
                     {formatDate(d.date)}
                   </th>
                 ))}
                 {data.dates.length === 0 && (
-                  <th className="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  <th className="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                     Noch keine Termine
                   </th>
                 )}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 bg-white">
+            <tbody className="divide-y divide-slate-100 bg-white dark:divide-slate-700 dark:bg-slate-800">
               {data.users.map((u) => (
-                <tr key={u.id} className="hover:bg-slate-50">
-                  <td className="truncate px-4 py-3 text-sm font-medium text-slate-900">
+                <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                  <td className="truncate px-4 py-3 text-sm font-medium text-slate-900 dark:text-slate-100">
                     {u.username}
                   </td>
                   {data.dates.map((d) => {
@@ -293,20 +290,20 @@ export default function AnwesenheitPage() {
                       <td key={d.id} className="px-2 py-3 text-center">
                           {e?.present ? (
                             <div className="flex flex-col items-center">
-                              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                                   <polyline points="20 6 9 17 4 12" />
                                 </svg>
                               </span>
                               {e.hours && u.id === user.id && (
-                                <span className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-slate-600">
+                                <span className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-slate-600 dark:text-slate-300">
                                   {e.hours}
                                   {u.hasFourCard && (
                                     <span
                                       className="group relative inline-flex cursor-help items-center"
                                       aria-label="Dies ist die Anzahl an bereits genommen Stunden"
                                     >
-                                      <span className="inline-flex h-3.5 w-3.5 select-none items-center justify-center rounded-full border border-slate-400 text-[9px] font-bold leading-none text-slate-500">
+                                      <span className="inline-flex h-3.5 w-3.5 select-none items-center justify-center rounded-full border border-slate-400 text-[9px] font-bold leading-none text-slate-500 dark:border-slate-500 dark:text-slate-400">
                                         i
                                       </span>
                                       <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] font-normal text-white opacity-0 shadow-lg transition group-hover:opacity-100">
@@ -318,7 +315,7 @@ export default function AnwesenheitPage() {
                               )}
                             </div>
                           ) : (
-                            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-red-100 text-red-700">
+                            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">
                               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                                 <path d="M18 6 6 18M6 6l12 12" />
                               </svg>
@@ -423,13 +420,11 @@ export default function AnwesenheitPage() {
         }
       >
         {allLoading ? (
-          <div className="text-sm text-slate-500">Lade Termine…</div>
+          <div className="text-sm text-slate-500 dark:text-slate-400">Lade Termine…</div>
         ) : allError ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {allError}
-          </div>
+          <Alert>{allError}</Alert>
         ) : allEntries.length === 0 ? (
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
             Es sind noch keine Anwesenheitstermine vorhanden.
           </div>
         ) : (
@@ -439,14 +434,14 @@ export default function AnwesenheitPage() {
               return (
                 <li
                   key={entry.id}
-                  className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                  className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900/40"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="text-sm font-semibold text-slate-900">
+                      <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                         {formatDate(entry.date)}
                       </div>
-                      <div className="text-xs text-slate-500">
+                      <div className="text-xs text-slate-500 dark:text-slate-400">
                         {presentCount} von {entry.entries.length} anwesend
                       </div>
                     </div>
@@ -455,7 +450,7 @@ export default function AnwesenheitPage() {
                         onClick={() => startEdit(entry)}
                         aria-label="Bearbeiten"
                         title="Bearbeiten"
-                        className="text-slate-400 hover:text-slate-700"
+                        className="text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-200"
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
@@ -471,7 +466,7 @@ export default function AnwesenheitPage() {
                         onClick={() => deleteEntry(entry)}
                         aria-label="Löschen"
                         title="Löschen"
-                        className="text-slate-400 hover:text-red-600"
+                        className="text-slate-400 hover:text-red-600 dark:text-slate-500 dark:hover:text-red-400"
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
@@ -493,11 +488,11 @@ export default function AnwesenheitPage() {
                       {entry.entries.map((e) => (
                         <li
                           key={e.userId}
-                          className="flex items-center justify-between gap-2 rounded-md bg-white px-2 py-1"
+                          className="flex items-center justify-between gap-2 rounded-md bg-white px-2 py-1 dark:bg-slate-800"
                         >
-                          <span className="flex items-center gap-2 text-slate-700">
+                          <span className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
                             {e.present ? (
-                              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
                                 <svg
                                   width="12"
                                   height="12"
@@ -510,7 +505,7 @@ export default function AnwesenheitPage() {
                                 </svg>
                               </span>
                             ) : (
-                              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-100 text-red-700">
+                              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">
                                 <svg
                                   width="12"
                                   height="12"
@@ -526,14 +521,14 @@ export default function AnwesenheitPage() {
                             {e.username}
                           </span>
                           {e.present && e.hours && e.userId === user.id && (
-                            <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-500">
+                            <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
                               {e.hours}
                               {e.hasFourCard && (
                                 <span
                                   className="group relative inline-flex cursor-help items-center"
                                   aria-label="Dies ist die Anzahl an bereits genommen Stunden"
                                 >
-                                  <span className="inline-flex h-3.5 w-3.5 select-none items-center justify-center rounded-full border border-slate-400 text-[9px] font-bold leading-none text-slate-500">
+                                  <span className="inline-flex h-3.5 w-3.5 select-none items-center justify-center rounded-full border border-slate-400 text-[9px] font-bold leading-none text-slate-500 dark:border-slate-500 dark:text-slate-400">
                                     i
                                   </span>
                                   <span className="pointer-events-none absolute bottom-full right-0 z-10 mb-1 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] font-normal text-white opacity-0 shadow-lg transition group-hover:opacity-100">
@@ -568,13 +563,11 @@ export default function AnwesenheitPage() {
         }
       >
         {cardsLoading ? (
-          <div className="text-sm text-slate-500">Lade 4er-Karten…</div>
+          <div className="text-sm text-slate-500 dark:text-slate-400">Lade 4er-Karten…</div>
         ) : cardsError ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {cardsError}
-          </div>
+          <Alert>{cardsError}</Alert>
         ) : cards.length === 0 ? (
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
             In diesem Kurs hat noch niemand eine 4er-Karte hinterlegt.
           </div>
         ) : (
@@ -582,18 +575,18 @@ export default function AnwesenheitPage() {
             {cards.map((c) => (
               <li
                 key={c.userId}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/40"
               >
                 <div className="min-w-0">
-                  <div className="text-sm font-semibold text-slate-900">
+                  <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                     {c.username}
                   </div>
-                  <div className="text-xs text-slate-500">
+                  <div className="text-xs text-slate-500 dark:text-slate-400">
                     Stunden gezählt: {c.displayHours}
                     {c.paidAt && (
                       <>
                         {" · "}
-                        <span className="text-emerald-700">
+                        <span className="text-emerald-700 dark:text-emerald-300">
                           Bezahlt am{" "}
                           {new Date(c.paidAt).toLocaleDateString("de-DE")}
                         </span>
@@ -602,19 +595,19 @@ export default function AnwesenheitPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-slate-700">
+                  <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                     {c.displayHours}
                   </span>
                   {c.paid ? (
-                    <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
+                    <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">
                       Bezahlt
                     </span>
                   ) : c.needsPayment ? (
-                    <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
+                    <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
                       Karte voll – zahlen
                     </span>
                   ) : (
-                    <span className="inline-flex items-center rounded-full bg-slate-200 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
+                    <span className="inline-flex items-center rounded-full bg-slate-200 px-2.5 py-0.5 text-xs font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-200">
                       Nicht bezahlt
                     </span>
                   )}
@@ -624,7 +617,7 @@ export default function AnwesenheitPage() {
                     className={[
                       "rounded-lg px-3 py-1 text-xs font-semibold shadow-sm transition focus:outline-none focus:ring-2 focus:ring-offset-2",
                       c.paid
-                        ? "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 focus:ring-slate-400"
+                        ? "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 focus:ring-slate-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                         : "bg-emerald-600 text-white hover:bg-emerald-700 focus:ring-emerald-400",
                     ].join(" ")}
                   >

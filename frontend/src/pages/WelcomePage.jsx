@@ -34,12 +34,12 @@ export default function WelcomePage() {
         <p className="text-xs font-semibold uppercase tracking-[0.3em] text-brand-600">
           DanceFans
         </p>
-        <h1 className="mt-2 text-3xl font-semibold text-slate-900">
+        <h1 className="mt-2 text-3xl font-semibold text-slate-900 dark:text-slate-100">
           Willkommen, {user?.username}!
         </h1>
-        <p className="mt-3 text-sm text-slate-500">
+        <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
           {isAdmin ? "Administrator" : "Teilnehmer"} · Kurs:{" "}
-          <span className="font-medium text-slate-700">{user?.courseName}</span>
+          <span className="font-medium text-slate-700 dark:text-slate-200">{user?.courseName}</span>
         </p>
       </div>
 
@@ -48,10 +48,10 @@ export default function WelcomePage() {
           <Link
             key={link.to}
             to={link.to}
-            className="card block p-5 transition hover:border-brand-300 hover:shadow-md"
+            className="card block p-5 transition hover:border-brand-300 hover:shadow-md dark:hover:border-brand-500"
           >
-            <h2 className="text-sm font-semibold text-slate-900">{link.title}</h2>
-            <p className="mt-1.5 text-sm text-slate-500">{link.description}</p>
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{link.title}</h2>
+            <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">{link.description}</p>
           </Link>
         ))}
       </div>

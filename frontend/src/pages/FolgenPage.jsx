@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 
 import { api } from "../api/client.js";
+import Alert from "../components/Alert.jsx";
 import DanceTabs from "../components/DanceTabs.jsx";
 import Modal from "../components/Modal.jsx";
 import PageHeader from "../components/PageHeader.jsx";
@@ -268,11 +269,9 @@ export default function FolgenPage() {
       />
 
       {loading ? (
-        <div className="text-sm text-slate-500">Lade Folgen…</div>
+        <div className="text-sm text-slate-500 dark:text-slate-400">Lade Folgen…</div>
       ) : error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
+        <Alert>{error}</Alert>
       ) : (
         <>
           <DanceTabs
@@ -294,7 +293,7 @@ export default function FolgenPage() {
           )}
 
           {visible.length === 0 ? (
-            <div className="card p-6 text-sm text-slate-500">
+            <div className="card p-6 text-sm text-slate-500 dark:text-slate-400">
               Für diesen Tanz sind noch keine Folgen hinterlegt.
             </div>
           ) : (
@@ -302,12 +301,12 @@ export default function FolgenPage() {
               {visible.map((s) => (
                 <div key={s.id} className="card p-5">
                   <div className="flex items-start justify-between gap-2">
-                    <h3 className="text-base font-semibold text-slate-900">
+                    <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
                       {s.name}
                     </h3>
                     <div className="flex items-center gap-2">
                       {isAdmin && !s.visible && (
-                        <span className="inline-flex items-center rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-semibold text-rose-700">
+                        <span className="inline-flex items-center rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-semibold text-rose-700 dark:bg-rose-900/40 dark:text-rose-300">
                           Ausgeblendet
                         </span>
                       )}
@@ -318,7 +317,7 @@ export default function FolgenPage() {
                             onClick={() => openEditModal(s)}
                             aria-label="Bearbeiten"
                             title="Bearbeiten"
-                            className="text-slate-400 hover:text-slate-700"
+                            className="text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-200"
                           >
                             <svg
                               xmlns="http://www.w3.org/2000/svg"
@@ -335,7 +334,7 @@ export default function FolgenPage() {
                             onClick={() => setDeletingSequence(s)}
                             aria-label="Löschen"
                             title="Löschen"
-                            className="text-slate-400 hover:text-red-600"
+                            className="text-slate-400 hover:text-red-600 dark:text-slate-500 dark:hover:text-red-400"
                           >
                             <svg
                               xmlns="http://www.w3.org/2000/svg"
@@ -355,7 +354,7 @@ export default function FolgenPage() {
                     </div>
                   </div>
                   {s.description && (
-                    <p className="mt-1 text-sm text-slate-600">
+                    <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
                       {s.description}
                     </p>
                   )}
@@ -366,13 +365,13 @@ export default function FolgenPage() {
                       .filter((p) => p.length > 0);
                     return (
                       <div className="mt-3">
-                        <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                        <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                           Enthaltene Figuren
                         </div>
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                           {parts.map((part, idx) => (
                             <Fragment key={idx}>
-                              <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700">
+                              <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 dark:border-slate-600 dark:bg-slate-900/40 dark:text-slate-200">
                                 {part}
                               </span>
                               {idx < parts.length - 1 && (
@@ -385,7 +384,7 @@ export default function FolgenPage() {
                                   strokeWidth="2"
                                   strokeLinecap="round"
                                   strokeLinejoin="round"
-                                  className="text-slate-400"
+                                  className="text-slate-400 dark:text-slate-500"
                                   aria-hidden="true"
                                 >
                                   <path d="M9 6l6 6-6 6" />
@@ -468,7 +467,7 @@ export default function FolgenPage() {
                 <div className="space-y-2">
                   {createForm.figureRows.map((row, index) => (
                     <div key={index} className="flex items-center gap-2">
-                      <span className="inline-flex h-9 w-7 flex-shrink-0 items-center justify-center text-xs font-semibold text-slate-500">
+                      <span className="inline-flex h-9 w-7 flex-shrink-0 items-center justify-center text-xs font-semibold text-slate-500 dark:text-slate-400">
                         {index + 1}.
                       </span>
                       {figureOptions.length > 0 ? (
@@ -523,7 +522,7 @@ export default function FolgenPage() {
                         disabled={
                           createForm.figureRows.length <= 1 && row === ""
                         }
-                        className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
+                        className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                         aria-label="Figur entfernen"
                         title="Figur entfernen"
                       >
@@ -544,7 +543,7 @@ export default function FolgenPage() {
                   ))}
                 </div>
                 {figureOptions.length === 0 && createForm.danceId && (
-                  <div className="mt-2 text-xs text-slate-500">
+                  <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                     Für diesen Tanz sind noch keine Figuren angelegt — du
                     kannst die Namen frei eintippen.
                   </div>
@@ -567,11 +566,7 @@ export default function FolgenPage() {
                 />
               </div>
 
-              {createError && (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                  {createError}
-                </div>
-              )}
+              {createError && <Alert compact>{createError}</Alert>}
               <button type="submit" className="hidden" aria-hidden="true" />
             </form>
           </Modal>
@@ -592,26 +587,26 @@ export default function FolgenPage() {
           >
             <div className="space-y-3">
               {visibilityItems.length === 0 ? (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
                   Keine Folgen zum Verwalten vorhanden.
                 </div>
               ) : (
                 visibilityItems.map((item) => (
                   <label
                     key={item.id}
-                    className="flex cursor-pointer items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
+                    className="flex cursor-pointer items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/40"
                   >
                     <input
                       type="checkbox"
                       checked={item.visible}
                       onChange={() => toggleVisibility(item.id)}
-                      className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-400"
+                      className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-400 dark:border-slate-500 dark:bg-slate-700"
                     />
                     <div>
-                      <div className="font-medium text-slate-900">
+                      <div className="font-medium text-slate-900 dark:text-slate-100">
                         {item.name}
                       </div>
-                      <div className="text-sm text-slate-500">
+                      <div className="text-sm text-slate-500 dark:text-slate-400">
                         {item.danceName}
                       </div>
                     </div>
@@ -644,7 +639,7 @@ export default function FolgenPage() {
               </>
             }
           >
-            <p className="text-sm text-slate-700">
+            <p className="text-sm text-slate-700 dark:text-slate-200">
               Soll die Folge{" "}
               <span className="font-semibold">{deletingSequence?.name}</span>{" "}
               wirklich gelöscht werden? Diese Aktion kann nicht rückgängig
