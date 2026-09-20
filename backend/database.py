@@ -60,6 +60,16 @@ CREATE TABLE IF NOT EXISTS figures (
     FOREIGN KEY (dance_id) REFERENCES dances(id)
 );
 
+CREATE TABLE IF NOT EXISTS figure_columns (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    course_id INTEGER NOT NULL,
+    dance_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (course_id) REFERENCES courses(id),
+    FOREIGN KEY (dance_id) REFERENCES dances(id)
+);
+
 CREATE TABLE IF NOT EXISTS sequences (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     course_id INTEGER NOT NULL,
@@ -172,6 +182,8 @@ def init_db():
             ("precedes", "TEXT"),
             ("follows", "TEXT"),
             ("visible", "INTEGER NOT NULL DEFAULT 1"),
+            ("column_id", "INTEGER"),
+            ("position", "INTEGER NOT NULL DEFAULT 0"),
         ]:
             if column not in existing_fig_columns:
                 conn.execute(f"ALTER TABLE figures ADD COLUMN {column} {definition}")

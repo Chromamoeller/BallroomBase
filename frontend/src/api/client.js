@@ -116,6 +116,26 @@ export const api = {
     }),
   deleteFigure: (courseId, figureId) =>
     request(`/figures/${courseId}/${figureId}`, { method: "DELETE" }),
+  figureColumns: (courseId) => request(`/figure-columns/${courseId}`),
+  addFigureColumn: (courseId, danceId, name) =>
+    request(`/figure-columns/${courseId}`, {
+      method: "POST",
+      body: { danceId, name },
+    }),
+  renameFigureColumn: (courseId, columnId, name) =>
+    request(`/figure-columns/${courseId}/${columnId}`, {
+      method: "PUT",
+      body: { name },
+    }),
+  deleteFigureColumn: (courseId, columnId) =>
+    request(`/figure-columns/${courseId}/${columnId}`, { method: "DELETE" }),
+  reorderFigureColumns: (courseId, danceId, ids) =>
+    request(`/figure-columns/${courseId}/order`, {
+      method: "PUT",
+      body: { danceId, ids },
+    }),
+  updateFiguresBoard: (courseId, items) =>
+    request(`/figures/${courseId}/board`, { method: "PUT", body: { items } }),
   sequences: (courseId) => request(`/sequences/${courseId}`),
   addSequence: (courseId, payload) =>
     request(`/sequences/${courseId}`, { method: "POST", body: payload }),

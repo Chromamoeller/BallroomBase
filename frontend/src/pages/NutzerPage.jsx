@@ -242,6 +242,7 @@ export default function NutzerPage() {
   const importErrors = importResult
     ? [
         ...(importResult.users?.errors || []),
+        ...(importResult.columns?.errors || []),
         ...(importResult.figures?.errors || []),
         ...(importResult.sequences?.errors || []),
         ...(importResult.history?.errors || []),
@@ -365,6 +366,13 @@ export default function NutzerPage() {
                 Figuren: <strong>{importResult.figures.created}</strong> neu
                 {importResult.figures.skipped?.length > 0 &&
                   `, ${importResult.figures.skipped.length} übersprungen`}
+              </li>
+            )}
+            {importResult.columns && (
+              <li>
+                Figuren-Spalten: <strong>{importResult.columns.created}</strong> neu
+                {importResult.columns.skipped?.length > 0 &&
+                  `, ${importResult.columns.skipped.length} übersprungen`}
               </li>
             )}
             {importResult.sequences && (

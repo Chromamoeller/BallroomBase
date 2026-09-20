@@ -22,11 +22,12 @@ def get_figures(course_id):
             "SELECT f.id, f.name, f.description, f.difficulty, f.video_url, "
             "f.steps, f.steps_lady, f.count_steps, f.footwork, "
             "f.amount_of_turn, f.precedes, f.follows, f.visible, "
+            "f.column_id, f.position, "
             "f.dance_id, d.name AS dance_name "
             "FROM figures f JOIN dances d ON d.id = f.dance_id "
             "WHERE f.course_id = ? "
             + ("" if is_admin else "AND f.visible = 1 ")
-            + "ORDER BY d.id, f.name"
+            + "ORDER BY d.id, f.position, f.name"
         )
         rows = conn.execute(query, (course_id,)).fetchall()
         return jsonify([
@@ -44,6 +45,8 @@ def get_figures(course_id):
                 "precedes": r["precedes"],
                 "follows": r["follows"],
                 "visible": bool(r["visible"]),
+                "columnId": r["column_id"],
+                "position": r["position"],
                 "danceId": r["dance_id"],
                 "danceName": r["dance_name"],
             }
@@ -81,11 +84,16 @@ def create_figure(course_id):
         if not dance:
             return jsonify({"error": "Tanz nicht gefunden"}), 400
 
+        position = conn.execute(
+            "SELECT COALESCE(MAX(position), 0) + 1 FROM figures "
+            "WHERE course_id = ? AND dance_id = ? AND column_id IS NULL",
+            (course_id, dance_id),
+        ).fetchone()[0]
         cur = conn.execute(
             "INSERT INTO figures (course_id, dance_id, name, description, difficulty, "
             "video_url, steps, steps_lady, count_steps, footwork, amount_of_turn, "
-            "precedes, follows, visible) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1)",
+            "precedes, follows, visible, position) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1,?)",
             (
                 course_id,
                 dance_id,
@@ -100,11 +108,14 @@ def create_figure(course_id):
                 amount_of_turn,
                 precedes,
                 follows,
+                position,
             ),
         )
         conn.commit()
         return jsonify({
             "id": cur.lastrowid,
+            "columnId": None,
+            "position": position,
             "name": name,
             "description": description,
             "difficulty": difficulty,
@@ -163,7 +174,9 @@ def update_figure(course_id, figure_id):
             "UPDATE figures SET dance_id = ?, name = ?, description = ?, "
             "difficulty = ?, video_url = ?, steps = ?, steps_lady = ?, "
             "count_steps = ?, footwork = ?, amount_of_turn = ?, "
-            "precedes = ?, follows = ? WHERE id = ?",
+            "precedes = ?, follows = ?, "
+            "column_id = CASE WHEN dance_id = ? THEN column_id ELSE NULL END "
+            "WHERE id = ?",
             (
                 dance_id,
                 name,
@@ -177,6 +190,7 @@ def update_figure(course_id, figure_id):
                 amount_of_turn,
                 precedes,
                 follows,
+                dance_id,
                 figure_id,
             ),
         )
@@ -186,6 +200,7 @@ def update_figure(course_id, figure_id):
             "SELECT f.id, f.name, f.description, f.difficulty, f.video_url, "
             "f.steps, f.steps_lady, f.count_steps, f.footwork, "
             "f.amount_of_turn, f.precedes, f.follows, f.visible, "
+            "f.column_id, f.position, "
             "f.dance_id, d.name AS dance_name "
             "FROM figures f JOIN dances d ON d.id = f.dance_id "
             "WHERE f.id = ?",
@@ -205,6 +220,8 @@ def update_figure(course_id, figure_id):
             "precedes": row["precedes"],
             "follows": row["follows"],
             "visible": bool(row["visible"]),
+            "columnId": row["column_id"],
+            "position": row["position"],
             "danceId": row["dance_id"],
             "danceName": row["dance_name"],
         })

@@ -4,28 +4,12 @@ import { api } from "../api/client.js";
 import Alert from "../components/Alert.jsx";
 import DanceTabs, { getDanceStyle } from "../components/DanceTabs.jsx";
 import DanceInfoPanel from "../components/DanceInfoPanel.jsx";
+import FigurenBoard, { DIFFICULTY_META } from "../components/FigurenBoard.jsx";
 import Modal from "../components/Modal.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 
-const DIFFICULTY_META = {
-  Leicht: {
-    rank: 1,
-    className:
-      "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
-  },
-  Mittel: {
-    rank: 2,
-    className: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300",
-  },
-  Schwer: {
-    rank: 3,
-    className:
-      "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300",
-  },
-};
-
-const stepDirectionMeta =(direction) => {
+const stepDirectionMeta = (direction) => {
   const d = (direction || "").toLowerCase();
   if (d.includes("drehung"))
     return { type: d.includes("rechts") ? "turnRight" : "turnLeft" };
@@ -163,7 +147,8 @@ export default function FigurenPage() {
   const [activeDance, setActiveDance] = useState(null);
   const [detailFigureId, setDetailFigureId] = useState(null);
   const [search, setSearch] = useState("");
-  const [sortBy, setSortBy] = useState("name-asc");
+  const [boardError, setBoardError] = useState(null);
+  const [columns, setColumns] = useState([]);
   const [selectedVideoFigure, setSelectedVideoFigure] = useState(null);
   const [visibilityModalOpen, setVisibilityModalOpen] = useState(false);
   const [visibilityItems, setVisibilityItems] = useState([]);
@@ -262,13 +247,15 @@ export default function FigurenPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [d, f] = await Promise.all([
+        const [d, f, c] = await Promise.all([
           api.dances(),
           api.figures(user.courseId),
+          api.figureColumns(user.courseId),
         ]);
         if (cancelled) return;
         setDances(d);
         setFigures(f);
+        setColumns(c);
         setActiveDance(d[0]?.id ?? null);
       } catch (err) {
         if (!cancelled) setError(err.message);
@@ -291,18 +278,99 @@ export default function FigurenPage() {
 
   const displayedFigures = useMemo(() => {
     const query = search.trim().toLowerCase();
-    const list = visibleFigures.filter(
+    return visibleFigures.filter(
       (f) => !query || f.name.toLowerCase().includes(query),
     );
-    const rank = (f) => DIFFICULTY_META[f.difficulty]?.rank ?? 99;
-    return [...list].sort((a, b) => {
-      if (sortBy === "name-desc") return b.name.localeCompare(a.name);
-      if (sortBy === "difficulty") {
-        return rank(a) - rank(b) || a.name.localeCompare(b.name);
-      }
-      return a.name.localeCompare(b.name);
-    });
-  }, [visibleFigures, search, sortBy]);
+  }, [visibleFigures, search]);
+
+  const danceColumns = useMemo(
+    () =>
+      columns
+        .filter((c) => c.danceId === activeDance)
+        .sort((a, b) => a.position - b.position || a.id - b.id),
+    [columns, activeDance],
+  );
+
+  const reloadBoard = async () => {
+    try {
+      const [f, c] = await Promise.all([
+        api.figures(user.courseId),
+        api.figureColumns(user.courseId),
+      ]);
+      setFigures(f);
+      setColumns(c);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const moveCards = async (items) => {
+    const byId = new Map(items.map((i) => [i.id, i]));
+    setFigures((current) =>
+      current.map((f) =>
+        byId.has(f.id)
+          ? { ...f, columnId: byId.get(f.id).columnId, position: byId.get(f.id).position }
+          : f,
+      ),
+    );
+    try {
+      await api.updateFiguresBoard(user.courseId, items);
+    } catch (err) {
+      setBoardError(err.message);
+      await reloadBoard();
+    }
+  };
+
+  const addColumn = async (name) => {
+    try {
+      const created = await api.addFigureColumn(user.courseId, activeDance, name);
+      setColumns((current) => [...current, created]);
+    } catch (err) {
+      setBoardError(err.message);
+    }
+  };
+
+  const renameColumn = async (id, name) => {
+    try {
+      await api.renameFigureColumn(user.courseId, id, name);
+      setColumns((current) =>
+        current.map((c) => (c.id === id ? { ...c, name } : c)),
+      );
+    } catch (err) {
+      setBoardError(err.message);
+    }
+  };
+
+  const deleteColumn = async (id) => {
+    try {
+      await api.deleteFigureColumn(user.courseId, id);
+      setColumns((current) => current.filter((c) => c.id !== id));
+      setFigures((current) =>
+        current.map((f) => (f.columnId === id ? { ...f, columnId: null } : f)),
+      );
+    } catch (err) {
+      setBoardError(err.message);
+    }
+  };
+
+  const moveColumn = async (id, direction) => {
+    const ids = danceColumns.map((c) => c.id);
+    const from = ids.indexOf(id);
+    const to = from + direction;
+    if (from < 0 || to < 0 || to >= ids.length) return;
+    [ids[from], ids[to]] = [ids[to], ids[from]];
+    setColumns((current) =>
+      current.map((c) =>
+        ids.includes(c.id) ? { ...c, position: ids.indexOf(c.id) + 1 } : c,
+      ),
+    );
+    try {
+      await api.reorderFigureColumns(user.courseId, activeDance, ids);
+    } catch (err) {
+      setBoardError(err.message);
+      await reloadBoard();
+    }
+  };
 
   const detailFigure = useMemo(
     () => figures.find((f) => f.id === detailFigureId) ?? null,
@@ -676,19 +744,6 @@ export default function FigurenPage() {
                   className="input w-56 rounded-full pl-10"
                 />
               </div>
-              <label className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-                <span className="hidden sm:inline">Sortieren nach</span>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  aria-label="Sortieren nach"
-                  className="input w-auto rounded-full"
-                >
-                  <option value="name-asc">Name (A–Z)</option>
-                  <option value="name-desc">Name (Z–A)</option>
-                  <option value="difficulty">Schwierigkeit</option>
-                </select>
-              </label>
               {isAdmin && (
                 <button
                   type="button"
@@ -701,109 +756,40 @@ export default function FigurenPage() {
             </div>
           </div>
 
-          {displayedFigures.length === 0 ? (
+          {boardError && (
+            <Alert className="mb-4">
+              {boardError}{" "}
+              <button
+                type="button"
+                className="ml-2 font-semibold underline"
+                onClick={() => setBoardError(null)}
+              >
+                Schließen
+              </button>
+            </Alert>
+          )}
+
+          {displayedFigures.length === 0 && !isAdmin ? (
             <div className="card p-6 text-sm text-slate-500 dark:text-slate-400">
               {visibleFigures.length === 0
                 ? "Für diesen Tanz sind noch keine Figuren hinterlegt."
                 : "Keine Figur passt zu deiner Suche."}
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {displayedFigures.map((f, index) => (
-                <div
-                  key={f.id}
-                  className="card relative flex items-center gap-4 p-4 transition hover:border-brand-300 hover:shadow-md dark:hover:border-brand-500"
-                >
-                  <button
-                    type="button"
-                    onClick={() => setDetailFigureId(f.id)}
-                    className="absolute inset-0 rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2"
-                    aria-label={`${f.name} – Details anzeigen`}
-                  />
-                  <div className="pointer-events-none flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-brand-50 text-base font-bold text-brand-700 dark:bg-brand-900/30 dark:text-brand-200">
-                    {index + 1}
-                  </div>
-                  <div className="pointer-events-none min-w-0 flex-1">
-                    <h3 className="truncate text-base font-semibold text-slate-900 dark:text-slate-100">
-                      {f.name}
-                    </h3>
-                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                      {DIFFICULTY_META[f.difficulty] && (
-                        <span
-                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${DIFFICULTY_META[f.difficulty].className}`}
-                        >
-                          {f.difficulty}
-                        </span>
-                      )}
-                      {isAdmin && !f.visible && (
-                        <span className="text-xs font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400">
-                          Ausgeblendet
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {isAdmin && (
-                    <div className="absolute bottom-3 right-16 flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => openEditModal(f)}
-                        aria-label="Bearbeiten"
-                        title="Bearbeiten"
-                        className="text-slate-400 transition hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-200"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-5 w-5"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                        >
-                          <path d="M17.414 2.586a2 2 0 0 0-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 0 0 0-2.828z" />
-                          <path d="M2 15a1 1 0 0 0 1 1h3v-2H4v-2H2v3z" />
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDeletingFigure(f)}
-                        aria-label="Löschen"
-                        title="Löschen"
-                        className="text-slate-400 transition hover:text-red-600 dark:text-slate-500 dark:hover:text-red-400"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-5 w-5"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M9 2a1 1 0 0 0-.894.553L7.382 4H4a1 1 0 0 0 0 2h12a1 1 0 1 0 0-2h-3.382l-.724-1.447A1 1 0 0 0 11 2H9zM5 8a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v8a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8zm3 2a1 1 0 0 1 2 0v5a1 1 0 1 1-2 0v-5zm4 0a1 1 0 1 1 2 0v5a1 1 0 1 1-2 0v-5z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                      </button>
-                    </div>
-                  )}
-                  <span
-                    className="pointer-events-none flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-500 dark:border-slate-600 dark:text-slate-300"
-                    aria-hidden="true"
-                  >
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="m9 6 6 6-6 6" />
-                    </svg>
-                  </span>
-                </div>
-              ))}
-            </div>
+            <FigurenBoard
+              figures={displayedFigures}
+              columns={danceColumns}
+              isAdmin={isAdmin}
+              canDrag={isAdmin && !search.trim()}
+              onOpen={(f) => setDetailFigureId(f.id)}
+              onEdit={openEditModal}
+              onDelete={setDeletingFigure}
+              onMoveCards={moveCards}
+              onAddColumn={addColumn}
+              onRenameColumn={renameColumn}
+              onDeleteColumn={deleteColumn}
+              onMoveColumn={moveColumn}
+            />
           )}
 
           <DanceInfoPanel

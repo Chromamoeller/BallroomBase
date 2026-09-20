@@ -31,8 +31,9 @@ USER_COLUMNS = [
 FIGURE_COLUMNS = [
     "course", "dance", "name", "description", "difficulty", "video_url",
     "steps", "steps_lady", "count", "footwork", "amount_of_turn", "precedes",
-    "follows", "visible",
+    "follows", "visible", "board_column",
 ]
+COLUMN_COLUMNS = ["course", "dance", "name", "position"]
 SEQUENCE_COLUMNS = ["course", "dance", "name", "figures", "description", "visible"]
 HISTORY_COLUMNS = ["course", "date", "warmup", "lesson", "cooldown"]
 ATTENDANCE_COLUMNS = ["course", "date", "username", "present"]
@@ -44,6 +45,7 @@ PROGRAM_COLUMNS = [
 # Dateiname in der ZIP -> interner Bereichsschlüssel.
 ZIP_FILES = {
     "nutzer.csv": "users",
+    "spalten.csv": "columns",
     "figuren.csv": "figures",
     "folgen.csv": "sequences",
     "historie.csv": "history",
@@ -97,10 +99,11 @@ def _export_figures(conn):
         "SELECT c.name AS course_name, d.name AS dance_name, f.name, "
         "f.description, f.difficulty, f.video_url, f.steps, f.steps_lady, "
         "f.count_steps, f.footwork, f.amount_of_turn, f.precedes, f.follows, "
-        "f.visible "
+        "f.visible, fc.name AS column_name "
         "FROM figures f JOIN dances d ON d.id = f.dance_id "
         "JOIN courses c ON c.id = f.course_id "
-        "ORDER BY c.name, d.id, f.name"
+        "LEFT JOIN figure_columns fc ON fc.id = f.column_id "
+        "ORDER BY c.name, d.id, COALESCE(fc.position, 0), f.position, f.name"
     ).fetchall()
     return _csv_bytes(FIGURE_COLUMNS, [
         [
@@ -118,7 +121,21 @@ def _export_figures(conn):
             r["precedes"] or "",
             r["follows"] or "",
             "1" if r["visible"] else "0",
+            r["column_name"] or "",
         ]
+        for r in rows
+    ])
+
+
+def _export_columns(conn):
+    rows = conn.execute(
+        "SELECT c.name AS course_name, d.name AS dance_name, fc.name, fc.position "
+        "FROM figure_columns fc JOIN dances d ON d.id = fc.dance_id "
+        "JOIN courses c ON c.id = fc.course_id "
+        "ORDER BY c.name, d.id, fc.position, fc.id"
+    ).fetchall()
+    return _csv_bytes(COLUMN_COLUMNS, [
+        [r["course_name"], r["dance_name"], r["name"], r["position"]]
         for r in rows
     ])
 
@@ -212,6 +229,7 @@ def export_backup():
     try:
         files = {
             "nutzer.csv": _export_users(conn),
+            "spalten.csv": _export_columns(conn),
             "figuren.csv": _export_figures(conn),
             "folgen.csv": _export_sequences(conn),
             "historie.csv": _export_history(conn),
@@ -331,8 +349,53 @@ def _import_users(conn, reader, fieldnames, courses_by_name):
     return {"created": created, "skipped": skipped, "errors": errors}
 
 
+def _import_columns(conn, reader, fieldnames, courses_by_name, dances_by_name):
+    cell = _cell_factory(fieldnames)
+    existing = conn.execute(
+        "SELECT course_id, dance_id, name FROM figure_columns"
+    ).fetchall()
+    existing_keys = {
+        (r["course_id"], r["dance_id"], r["name"].strip().lower()) for r in existing
+    }
+    created = 0
+    skipped = []
+    errors = []
+    for idx, row in enumerate(reader, start=2):
+        name = cell(row, "name")
+        course_id = courses_by_name.get(cell(row, "course").lower())
+        dance_id = dances_by_name.get(cell(row, "dance").lower())
+        if not name:
+            errors.append(f"Spalten Zeile {idx}: Name fehlt")
+            continue
+        if not course_id or not dance_id:
+            errors.append(f"Spalten Zeile {idx} ({name}): Kurs oder Tanz nicht gefunden")
+            continue
+        key = (course_id, dance_id, name.lower())
+        if key in existing_keys:
+            skipped.append(name)
+            continue
+        try:
+            position = int(cell(row, "position") or 0)
+        except ValueError:
+            position = 0
+        conn.execute(
+            "INSERT INTO figure_columns (course_id, dance_id, name, position) "
+            "VALUES (?,?,?,?)",
+            (course_id, dance_id, name, position),
+        )
+        existing_keys.add(key)
+        created += 1
+    return {"created": created, "skipped": skipped, "errors": errors}
+
+
 def _import_figures(conn, reader, fieldnames, courses_by_name, dances_by_name):
     cell = _cell_factory(fieldnames)
+
+    columns_by_key = {
+        (r["course_id"], r["dance_id"], r["name"].strip().lower()): r["id"]
+        for r in conn.execute("SELECT id, course_id, dance_id, name FROM figure_columns")
+    }
+    next_position = {}
 
     existing = conn.execute(
         "SELECT c.name AS course_name, d.name AS dance_name, f.name "
@@ -384,11 +447,26 @@ def _import_figures(conn, reader, fieldnames, courses_by_name, dances_by_name):
         visible_raw = cell(row, "visible")
         visible = 1 if (not visible_raw or parse_bool(visible_raw)) else 0
 
+        column_name = cell(row, "board_column")
+        column_id = (
+            columns_by_key.get((course_id, dance_id, column_name.lower()))
+            if column_name
+            else None
+        )
+        slot = (course_id, dance_id, column_id)
+        if slot not in next_position:
+            next_position[slot] = conn.execute(
+                "SELECT COALESCE(MAX(position), 0) FROM figures "
+                "WHERE course_id = ? AND dance_id = ? AND column_id IS ?",
+                slot,
+            ).fetchone()[0]
+        next_position[slot] += 1
+
         conn.execute(
             "INSERT INTO figures (course_id, dance_id, name, description, "
             "difficulty, video_url, steps, steps_lady, count_steps, footwork, "
-            "amount_of_turn, precedes, follows, visible) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "amount_of_turn, precedes, follows, visible, column_id, position) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 course_id,
                 dance_id,
@@ -404,6 +482,8 @@ def _import_figures(conn, reader, fieldnames, courses_by_name, dances_by_name):
                 cell(row, "precedes") or None,
                 cell(row, "follows") or None,
                 visible,
+                column_id,
+                next_position[slot],
             ),
         )
         existing_keys.add(key)
@@ -764,6 +844,11 @@ def import_backup():
         if "users" in parsed:
             reader, fieldnames = parsed["users"]
             result["users"] = _import_users(conn, reader, fieldnames, courses_by_name)
+        if "columns" in parsed:
+            reader, fieldnames = parsed["columns"]
+            result["columns"] = _import_columns(
+                conn, reader, fieldnames, courses_by_name, dances_by_name
+            )
         if "figures" in parsed:
             reader, fieldnames = parsed["figures"]
             result["figures"] = _import_figures(
