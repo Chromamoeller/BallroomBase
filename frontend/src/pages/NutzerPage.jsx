@@ -29,6 +29,7 @@ export default function NutzerPage() {
     role: "teilnehmer",
     courseId: "",
     hasFourCard: false,
+    isHidden: false,
     fourCardHours: 0,
   };
   const [form, setForm] = useState(emptyForm);
@@ -83,6 +84,7 @@ export default function NutzerPage() {
       role: u.role,
       courseId: u.courseId ? String(u.courseId) : "",
       hasFourCard: Boolean(u.hasFourCard),
+      isHidden: Boolean(u.isHidden),
       fourCardHours: Number(u.fourCardHours ?? 0),
     });
     setFormError(null);
@@ -192,6 +194,7 @@ export default function NutzerPage() {
           role: form.role,
           courseId: Number(form.courseId),
           hasFourCard: form.hasFourCard,
+          isHidden: form.role === "teilnehmer" && form.isHidden,
         };
         if (form.hasFourCard) {
           const hours = Number(form.fourCardHours);
@@ -220,6 +223,7 @@ export default function NutzerPage() {
           role: form.role,
           courseId: Number(form.courseId),
           hasFourCard: form.hasFourCard,
+          isHidden: form.role === "teilnehmer" && form.isHidden,
         });
         setUsers((prev) =>
           [...prev, created].sort((a, b) =>
@@ -484,6 +488,14 @@ export default function NutzerPage() {
                   <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
                     <td className="px-5 py-3 text-sm font-medium text-slate-900 dark:text-slate-100">
                       {u.username}
+                      {u.isHidden && (
+                        <span
+                          className="ml-2 inline-flex items-center rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+                          title="In Anwesenheit und 4er-Karten ausgeblendet"
+                        >
+                          Test
+                        </span>
+                      )}
                     </td>
                     <td className="px-5 py-3 text-sm text-slate-700 dark:text-slate-200">
                       {u.role === "admin" ? "Administrator" : "Teilnehmer"}
@@ -647,6 +659,23 @@ export default function NutzerPage() {
               ))}
             </select>
           </div>
+          {form.role === "teilnehmer" && (
+            <label className="flex cursor-pointer items-start gap-2 text-sm text-slate-700 dark:text-slate-200">
+              <input
+                type="checkbox"
+                checked={form.isHidden}
+                onChange={(e) => updateField("isHidden", e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 dark:border-slate-500 dark:bg-slate-700"
+              />
+              <span>
+                Test-Account (ausgeblendet)
+                <span className="block text-xs text-slate-500 dark:text-slate-400">
+                  Sieht die App wie ein Teilnehmer, taucht aber nicht in
+                  Anwesenheit und 4er-Karten auf.
+                </span>
+              </span>
+            </label>
+          )}
           <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
             <input
               type="checkbox"

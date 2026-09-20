@@ -24,7 +24,7 @@ def get_attendance(course_id):
     try:
         users = conn.execute(
             "SELECT id, username, has_four_card FROM users WHERE course_id = ? AND role = 'teilnehmer' "
-            "ORDER BY username",
+            "AND is_hidden = 0 ORDER BY username",
             (course_id,),
         ).fetchall()
         dates = conn.execute(
@@ -95,6 +95,7 @@ def get_four_cards(course_id):
         users = conn.execute(
             "SELECT id, username, four_card_hours, four_card_paid_at FROM users "
             "WHERE course_id = ? AND role = 'teilnehmer' AND has_four_card = 1 "
+            "AND is_hidden = 0 "
             "ORDER BY username",
             (course_id,),
         ).fetchall()
@@ -178,7 +179,7 @@ def get_all_attendance(course_id):
             f"SELECT ae.attendance_id, ae.user_id, ae.present, ae.hours, "
             f"u.username, u.has_four_card "
             f"FROM attendance_entries ae JOIN users u ON u.id = ae.user_id "
-            f"WHERE ae.attendance_id IN ({placeholders}) "
+            f"WHERE ae.attendance_id IN ({placeholders}) AND u.is_hidden = 0 "
             f"ORDER BY u.username",
             ids,
         ).fetchall()
@@ -273,9 +274,12 @@ def add_attendance(course_id):
             attendance_id = cur.lastrowid
             previous_hours = {}
 
+        hidden_ids = {
+            r["id"] for r in conn.execute("SELECT id FROM users WHERE is_hidden = 1")
+        }
         for e in entries:
             user_id = e.get("userId")
-            if user_id is None:
+            if user_id is None or user_id in hidden_ids:
                 continue
             present = 1 if e.get("present") else 0
             prev_hours = previous_hours.get(user_id)

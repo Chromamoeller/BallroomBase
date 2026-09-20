@@ -159,6 +159,8 @@ def init_db():
             conn.execute("ALTER TABLE users ADD COLUMN four_card_hours INTEGER NOT NULL DEFAULT 0")
         if "four_card_paid_at" not in existing_user_columns:
             conn.execute("ALTER TABLE users ADD COLUMN four_card_paid_at TEXT")
+        if "is_hidden" not in existing_user_columns:
+            conn.execute("ALTER TABLE users ADD COLUMN is_hidden INTEGER NOT NULL DEFAULT 0")
         if "four_card_wraps" not in existing_user_columns:
             conn.execute("ALTER TABLE users ADD COLUMN four_card_wraps INTEGER NOT NULL DEFAULT 0")
         for column, definition in [

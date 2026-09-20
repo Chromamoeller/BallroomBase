@@ -17,7 +17,7 @@ def list_users():
     try:
         rows = conn.execute(
             "SELECT u.id, u.username, u.role, u.course_id, u.has_four_card, "
-            "u.four_card_hours, c.name AS course_name "
+            "u.four_card_hours, u.is_hidden, c.name AS course_name "
             "FROM users u JOIN courses c ON c.id = u.course_id "
             "ORDER BY u.username"
         ).fetchall()
@@ -30,6 +30,7 @@ def list_users():
                 "courseName": r["course_name"],
                 "hasFourCard": bool(r["has_four_card"]),
                 "fourCardHours": r["four_card_hours"],
+                "isHidden": bool(r["is_hidden"]),
             }
             for r in rows
         ])
@@ -46,6 +47,7 @@ def create_user():
     role = (data.get("role") or "teilnehmer").strip()
     course_id = data.get("courseId")
     has_four_card = 1 if data.get("hasFourCard") else 0
+    is_hidden = 1 if data.get("isHidden") and role == "teilnehmer" else 0
 
     if not username or not password:
         return jsonify({"error": "Benutzername und Passwort erforderlich"}), 400
@@ -68,14 +70,15 @@ def create_user():
             return jsonify({"error": "Kurs nicht gefunden"}), 400
 
         cur = conn.execute(
-            "INSERT INTO users (username, password_hash, role, course_id, has_four_card) "
-            "VALUES (?,?,?,?,?)",
+            "INSERT INTO users (username, password_hash, role, course_id, has_four_card, is_hidden) "
+            "VALUES (?,?,?,?,?,?)",
             (
                 username,
                 generate_password_hash(password),
                 role,
                 course_id,
                 has_four_card,
+                is_hidden,
             ),
         )
         conn.commit()
@@ -87,6 +90,7 @@ def create_user():
             "courseName": course["name"],
             "hasFourCard": bool(has_four_card),
             "fourCardHours": 0,
+            "isHidden": bool(is_hidden),
         }), 201
     finally:
         conn.close()
@@ -100,6 +104,7 @@ def update_user(user_id):
     role = (data.get("role") or "").strip()
     course_id = data.get("courseId")
     has_four_card = 1 if data.get("hasFourCard") else 0
+    is_hidden = 1 if data.get("isHidden") and role == "teilnehmer" else 0
     password = data.get("password") or ""
 
     four_card_hours_override = None
@@ -156,6 +161,9 @@ def update_user(user_id):
                 "has_four_card = ? WHERE id = ?",
                 (username, role, course_id, has_four_card, user_id),
             )
+        conn.execute(
+            "UPDATE users SET is_hidden = ? WHERE id = ?", (is_hidden, user_id)
+        )
         # 4er-Karte (Modell A: laufender Zähler – der manuell gesetzte Wert ist
         # maßgeblich und wird NICHT aus der Anwesenheits-Historie neu berechnet).
         if not has_four_card:
@@ -173,7 +181,7 @@ def update_user(user_id):
 
         row = conn.execute(
             "SELECT u.id, u.username, u.role, u.course_id, u.has_four_card, "
-            "u.four_card_hours, c.name AS course_name "
+            "u.four_card_hours, u.is_hidden, c.name AS course_name "
             "FROM users u JOIN courses c ON c.id = u.course_id WHERE u.id = ?",
             (user_id,),
         ).fetchone()
@@ -185,6 +193,7 @@ def update_user(user_id):
             "courseName": row["course_name"],
             "hasFourCard": bool(row["has_four_card"]),
             "fourCardHours": row["four_card_hours"],
+            "isHidden": bool(row["is_hidden"]),
         })
     finally:
         conn.close()

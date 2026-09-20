@@ -26,6 +26,7 @@ bp = Blueprint("backup", __name__)
 USER_COLUMNS = [
     "username", "password", "password_hash", "role", "course",
     "has_four_card", "four_card_hours", "four_card_wraps", "four_card_paid_at",
+    "is_hidden",
 ]
 FIGURE_COLUMNS = [
     "course", "dance", "name", "description", "difficulty", "video_url",
@@ -69,7 +70,7 @@ def _csv_bytes(columns, rows):
 def _export_users(conn):
     rows = conn.execute(
         "SELECT u.username, u.password_hash, u.role, u.has_four_card, "
-        "u.four_card_hours, u.four_card_wraps, u.four_card_paid_at, "
+        "u.four_card_hours, u.four_card_wraps, u.four_card_paid_at, u.is_hidden, "
         "c.name AS course_name "
         "FROM users u JOIN courses c ON c.id = u.course_id "
         "ORDER BY c.name, u.username"
@@ -85,6 +86,7 @@ def _export_users(conn):
             r["four_card_hours"] if r["four_card_hours"] is not None else 0,
             r["four_card_wraps"] if r["four_card_wraps"] is not None else 0,
             r["four_card_paid_at"] or "",
+            "1" if r["is_hidden"] else "0",
         ]
         for r in rows
     ])
@@ -272,6 +274,7 @@ def _import_users(conn, reader, fieldnames, courses_by_name):
         four_card_hours = cell_int("four_card_hours")
         four_card_wraps = cell_int("four_card_wraps")
         four_card_paid_at = cell(row, "four_card_paid_at") or None
+        is_hidden = 1 if (parse_bool(cell(row, "is_hidden")) and role == "teilnehmer") else 0
 
         if not username:
             errors.append(f"Nutzer Zeile {idx}: Benutzername fehlt")
@@ -309,8 +312,8 @@ def _import_users(conn, reader, fieldnames, courses_by_name):
 
         conn.execute(
             "INSERT INTO users (username, password_hash, role, course_id, "
-            "has_four_card, four_card_hours, four_card_wraps, four_card_paid_at) "
-            "VALUES (?,?,?,?,?,?,?,?)",
+            "has_four_card, four_card_hours, four_card_wraps, four_card_paid_at, is_hidden) "
+            "VALUES (?,?,?,?,?,?,?,?,?)",
             (
                 username,
                 hash_to_store,
@@ -320,6 +323,7 @@ def _import_users(conn, reader, fieldnames, courses_by_name):
                 four_card_hours,
                 four_card_wraps,
                 four_card_paid_at,
+                is_hidden,
             ),
         )
         created += 1
