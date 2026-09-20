@@ -335,6 +335,10 @@ const DEFAULT_STYLE = {
   border: "border-slate-400 dark:border-slate-500",
 };
 
+export function getDanceStyle(name) {
+  return DANCE_STYLES[name] ?? DEFAULT_STYLE;
+}
+
 export default function DanceTabs({ dances, activeId, onSelect }) {
   return (
     <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">

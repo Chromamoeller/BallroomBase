@@ -2,13 +2,30 @@ import { useEffect, useMemo, useState } from "react";
 
 import { api } from "../api/client.js";
 import Alert from "../components/Alert.jsx";
-import DanceTabs from "../components/DanceTabs.jsx";
+import DanceTabs, { getDanceStyle } from "../components/DanceTabs.jsx";
 import DanceInfoPanel from "../components/DanceInfoPanel.jsx";
 import Modal from "../components/Modal.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 
-const stepDirectionMeta = (direction) => {
+const DIFFICULTY_META = {
+  Leicht: {
+    rank: 1,
+    className:
+      "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+  },
+  Mittel: {
+    rank: 2,
+    className: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300",
+  },
+  Schwer: {
+    rank: 3,
+    className:
+      "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300",
+  },
+};
+
+const stepDirectionMeta =(direction) => {
   const d = (direction || "").toLowerCase();
   if (d.includes("drehung"))
     return { type: d.includes("rechts") ? "turnRight" : "turnLeft" };
@@ -145,6 +162,8 @@ export default function FigurenPage() {
   const [figures, setFigures] = useState([]);
   const [activeDance, setActiveDance] = useState(null);
   const [detailFigureId, setDetailFigureId] = useState(null);
+  const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState("name-asc");
   const [selectedVideoFigure, setSelectedVideoFigure] = useState(null);
   const [visibilityModalOpen, setVisibilityModalOpen] = useState(false);
   const [visibilityItems, setVisibilityItems] = useState([]);
@@ -166,8 +185,8 @@ export default function FigurenPage() {
     "Drehung rechts",
   ];
   const emptyStep = { foot: "", direction: "" };
-  // difficulty/footwork werden nicht mehr gepflegt, beim Bearbeiten aber
-  // durchgereicht, damit importierte Werte nicht verloren gehen.
+  // footwork wird nicht mehr gepflegt, beim Bearbeiten aber durchgereicht,
+  // damit importierte Werte nicht verloren gehen.
   const emptyForm = {
     danceId: "",
     name: "",
@@ -270,6 +289,21 @@ export default function FigurenPage() {
     [figures, activeDance, isAdmin],
   );
 
+  const displayedFigures = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const list = visibleFigures.filter(
+      (f) => !query || f.name.toLowerCase().includes(query),
+    );
+    const rank = (f) => DIFFICULTY_META[f.difficulty]?.rank ?? 99;
+    return [...list].sort((a, b) => {
+      if (sortBy === "name-desc") return b.name.localeCompare(a.name);
+      if (sortBy === "difficulty") {
+        return rank(a) - rank(b) || a.name.localeCompare(b.name);
+      }
+      return a.name.localeCompare(b.name);
+    });
+  }, [visibleFigures, search, sortBy]);
+
   const detailFigure = useMemo(
     () => figures.find((f) => f.id === detailFigureId) ?? null,
     [figures, detailFigureId],
@@ -279,6 +313,7 @@ export default function FigurenPage() {
     () => dances.find((d) => d.id === activeDance)?.name ?? null,
     [dances, activeDance],
   );
+  const danceStyle = getDanceStyle(activeDanceName);
 
   useEffect(() => {
     setVisibilityItems(
@@ -598,28 +633,86 @@ export default function FigurenPage() {
             onSelect={setActiveDance}
           />
 
-          {isAdmin && (
-            <div className="mb-4 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setVisibilityModalOpen(true)}
-                className="btn-secondary"
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-4">
+              <div
+                className={`flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full ${danceStyle.iconBg} ${danceStyle.iconColor}`}
               >
-                Sichtbarkeit verwalten
-              </button>
+                {danceStyle.icon}
+              </div>
+              <div className="min-w-0">
+                <h2 className="truncate text-xl font-semibold text-slate-900 dark:text-slate-100">
+                  Figuren – {activeDanceName ?? "Tanz"}
+                </h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  {visibleFigures.length}{" "}
+                  {visibleFigures.length === 1 ? "Figur" : "Figuren"} in deinem
+                  Kurs
+                </p>
+              </div>
             </div>
-          )}
 
-          {visibleFigures.length === 0 ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative">
+                <svg
+                  className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="m21 21-4.3-4.3" />
+                </svg>
+                <input
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Figur suchen…"
+                  aria-label="Figur suchen"
+                  className="input w-56 rounded-full pl-10"
+                />
+              </div>
+              <label className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                <span className="hidden sm:inline">Sortieren nach</span>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  aria-label="Sortieren nach"
+                  className="input w-auto rounded-full"
+                >
+                  <option value="name-asc">Name (A–Z)</option>
+                  <option value="name-desc">Name (Z–A)</option>
+                  <option value="difficulty">Schwierigkeit</option>
+                </select>
+              </label>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => setVisibilityModalOpen(true)}
+                  className="btn-secondary"
+                >
+                  Sichtbarkeit verwalten
+                </button>
+              )}
+            </div>
+          </div>
+
+          {displayedFigures.length === 0 ? (
             <div className="card p-6 text-sm text-slate-500 dark:text-slate-400">
-              Für diesen Tanz sind noch keine Figuren hinterlegt.
+              {visibleFigures.length === 0
+                ? "Für diesen Tanz sind noch keine Figuren hinterlegt."
+                : "Keine Figur passt zu deiner Suche."}
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {visibleFigures.map((f) => (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {displayedFigures.map((f, index) => (
                 <div
                   key={f.id}
-                  className="card relative flex items-center justify-between gap-3 p-5 transition hover:border-brand-300 hover:shadow-md dark:hover:border-brand-500"
+                  className="card relative flex items-center gap-4 p-4 transition hover:border-brand-300 hover:shadow-md dark:hover:border-brand-500"
                 >
                   <button
                     type="button"
@@ -627,19 +720,31 @@ export default function FigurenPage() {
                     className="absolute inset-0 rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2"
                     aria-label={`${f.name} – Details anzeigen`}
                   />
-                  <div className="pointer-events-none min-w-0">
+                  <div className="pointer-events-none flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-brand-50 text-base font-bold text-brand-700 dark:bg-brand-900/30 dark:text-brand-200">
+                    {index + 1}
+                  </div>
+                  <div className="pointer-events-none min-w-0 flex-1">
                     <h3 className="truncate text-base font-semibold text-slate-900 dark:text-slate-100">
                       {f.name}
                     </h3>
-                    {isAdmin && !f.visible && (
-                      <div className="mt-1 text-xs font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400">
-                        Ausgeblendet
-                      </div>
-                    )}
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      {DIFFICULTY_META[f.difficulty] && (
+                        <span
+                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${DIFFICULTY_META[f.difficulty].className}`}
+                        >
+                          {f.difficulty}
+                        </span>
+                      )}
+                      {isAdmin && !f.visible && (
+                        <span className="text-xs font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400">
+                          Ausgeblendet
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {isAdmin && (
-                    <div className="relative flex flex-shrink-0 items-center gap-2">
+                    <div className="absolute bottom-3 right-16 flex items-center gap-2">
                       <button
                         type="button"
                         onClick={() => openEditModal(f)}
@@ -679,6 +784,23 @@ export default function FigurenPage() {
                       </button>
                     </div>
                   )}
+                  <span
+                    className="pointer-events-none flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-500 dark:border-slate-600 dark:text-slate-300"
+                    aria-hidden="true"
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="m9 6 6 6-6 6" />
+                    </svg>
+                  </span>
                 </div>
               ))}
             </div>
@@ -875,6 +997,27 @@ export default function FigurenPage() {
                   placeholder="z.B. Damen-Solodrehung"
                   required
                 />
+              </div>
+
+              <div>
+                <label className="label" htmlFor="figure-difficulty">
+                  Schwierigkeit
+                </label>
+                <select
+                  id="figure-difficulty"
+                  className="input"
+                  value={createForm.difficulty}
+                  onChange={(e) =>
+                    updateCreateField("difficulty", e.target.value)
+                  }
+                >
+                  <option value="">Keine Angabe</option>
+                  {Object.keys(DIFFICULTY_META).map((level) => (
+                    <option key={level} value={level}>
+                      {level}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>

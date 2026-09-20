@@ -36,14 +36,24 @@ export default function NutzerPage() {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
   const fileInputRef = useRef(null);
+  const [joinCodes, setJoinCodes] = useState([]);
+  const [codeDrafts, setCodeDrafts] = useState({});
+  const [codeSavingId, setCodeSavingId] = useState(null);
+  const [codeMessage, setCodeMessage] = useState(null);
 
   async function load() {
     setLoading(true);
     setError(null);
     try {
-      const [u, c] = await Promise.all([api.users(), api.courses()]);
+      const [u, c, codes] = await Promise.all([
+        api.users(),
+        api.courses(),
+        api.joinCodes(),
+      ]);
       setUsers(u);
       setCourses(c);
+      setJoinCodes(codes);
+      setCodeDrafts(Object.fromEntries(codes.map((x) => [x.id, x.joinCode])));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -135,6 +145,23 @@ export default function NutzerPage() {
       setError(err.message);
     } finally {
       setDeleting(false);
+    }
+  }
+
+  async function saveJoinCode(course) {
+    setCodeSavingId(course.id);
+    setCodeMessage(null);
+    try {
+      const updated = await api.updateJoinCode(course.id, codeDrafts[course.id] || "");
+      setJoinCodes((prev) =>
+        prev.map((x) => (x.id === course.id ? { ...x, joinCode: updated.joinCode } : x)),
+      );
+      setCodeDrafts((prev) => ({ ...prev, [course.id]: updated.joinCode }));
+      setCodeMessage({ variant: "success", text: `Code für ${course.name} gespeichert.` });
+    } catch (err) {
+      setCodeMessage({ variant: "error", text: err.message });
+    } finally {
+      setCodeSavingId(null);
     }
   }
 
@@ -376,6 +403,51 @@ export default function NutzerPage() {
             </ul>
           )}
         </Alert>
+      )}
+
+      {!loading && joinCodes.length > 0 && (
+        <div className="card mb-6 p-5">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+            Beitrittscodes für die Registrierung
+          </h2>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Nur wer den Code seines Kurses kennt, kann sich selbst einen Account
+            anlegen. Gib den Code im Kurs weiter und ändere ihn bei Bedarf.
+          </p>
+          <div className="mt-4 space-y-3">
+            {joinCodes.map((course) => (
+              <div key={course.id} className="flex flex-wrap items-center gap-3">
+                <div className="w-48 text-sm font-medium text-slate-700 dark:text-slate-200">
+                  {course.name}
+                </div>
+                <input
+                  className="input w-44 font-mono uppercase tracking-widest"
+                  value={codeDrafts[course.id] ?? ""}
+                  onChange={(e) =>
+                    setCodeDrafts((prev) => ({ ...prev, [course.id]: e.target.value }))
+                  }
+                  aria-label={`Beitrittscode ${course.name}`}
+                />
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={
+                    codeSavingId === course.id ||
+                    (codeDrafts[course.id] ?? "").trim().toUpperCase() === course.joinCode
+                  }
+                  onClick={() => saveJoinCode(course)}
+                >
+                  {codeSavingId === course.id ? "Speichern…" : "Speichern"}
+                </button>
+              </div>
+            ))}
+          </div>
+          {codeMessage && (
+            <Alert variant={codeMessage.variant} compact className="mt-3">
+              {codeMessage.text}
+            </Alert>
+          )}
+        </div>
       )}
 
       {loading ? (

@@ -68,6 +68,16 @@ export default function LoginPage() {
             {loading ? "Anmelden…" : "Anmelden"}
           </button>
 
+          <div className="border-t border-slate-200 pt-4 text-center text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">
+            Noch keinen Account?{" "}
+            <Link
+              to="/register"
+              className="font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
+            >
+              Jetzt registrieren
+            </Link>
+          </div>
+
           <Link to="/" className="block text-center text-sm text-slate-500 hover:text-brand-700 dark:text-slate-400 dark:hover:text-brand-300">
             Zurück zur Startseite
           </Link>

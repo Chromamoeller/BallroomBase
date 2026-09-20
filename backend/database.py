@@ -1,4 +1,5 @@
 import os
+import secrets
 import sqlite3
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -118,6 +119,33 @@ CREATE TABLE IF NOT EXISTS course_program_participants (
     FOREIGN KEY (program_id) REFERENCES course_programs(id) ON DELETE CASCADE
 );
 """
+
+
+JOIN_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+
+def generate_join_code():
+    return "".join(secrets.choice(JOIN_CODE_ALPHABET) for _ in range(6))
+
+
+def ensure_join_codes():
+    """Vergibt jedem Kurs ohne Beitrittscode einen zufälligen Code."""
+    conn = get_connection()
+    try:
+        columns = [r["name"] for r in conn.execute("PRAGMA table_info(courses)").fetchall()]
+        if "join_code" not in columns:
+            conn.execute("ALTER TABLE courses ADD COLUMN join_code TEXT")
+        rows = conn.execute(
+            "SELECT id FROM courses WHERE join_code IS NULL OR join_code = ''"
+        ).fetchall()
+        for r in rows:
+            conn.execute(
+                "UPDATE courses SET join_code = ? WHERE id = ?",
+                (generate_join_code(), r["id"]),
+            )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def init_db():

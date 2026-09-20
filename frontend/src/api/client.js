@@ -71,6 +71,14 @@ export const api = {
       body: { username, password },
       auth: false,
     }),
+  register: (payload) =>
+    request("/register", { method: "POST", body: payload, auth: false }),
+  joinCodes: () => request("/courses/join-codes"),
+  updateJoinCode: (courseId, joinCode) =>
+    request(`/courses/${courseId}/join-code`, {
+      method: "PUT",
+      body: { joinCode },
+    }),
   logout: () => request("/logout", { method: "POST" }),
   me: () => request("/me"),
   changePassword: (currentPassword, newPassword) =>

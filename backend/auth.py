@@ -1,6 +1,7 @@
 """Auth-Routen + zentrale Hilfsfunktionen für Token/Berechtigungen."""
 
 import secrets
+import time
 from functools import wraps
 
 from flask import Blueprint, jsonify, request
@@ -84,6 +85,89 @@ def login():
             "courseName": row["course_name"],
         },
     })
+
+
+REGISTER_WINDOW_SECONDS = 15 * 60
+REGISTER_MAX_ATTEMPTS = 10
+_register_attempts: dict[str, list[float]] = {}
+
+
+def _client_ip():
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    if forwarded:
+        # Letzter Eintrag stammt vom Proxy (Railway) und ist nicht fälschbar.
+        return forwarded.split(",")[-1].strip()
+    return request.remote_addr or "unknown"
+
+
+def _register_rate_limited(ip):
+    now = time.time()
+    recent = [t for t in _register_attempts.get(ip, []) if now - t < REGISTER_WINDOW_SECONDS]
+    if len(recent) >= REGISTER_MAX_ATTEMPTS:
+        _register_attempts[ip] = recent
+        return True
+    recent.append(now)
+    _register_attempts[ip] = recent
+    return False
+
+
+@bp.post("/api/register")
+def register():
+    if _register_rate_limited(_client_ip()):
+        return jsonify({"error": "Zu viele Versuche. Bitte später erneut versuchen."}), 429
+
+    data = request.get_json(silent=True) or {}
+    username = (data.get("username") or "").strip()
+    password = data.get("password") or ""
+    course_id = data.get("courseId")
+    join_code = (data.get("joinCode") or "").strip().upper()
+
+    if not username or not password or not course_id or not join_code:
+        return jsonify({"error": "Bitte alle Felder ausfüllen"}), 400
+    if len(username) < 2 or len(username) > 40:
+        return jsonify({"error": "Teilnehmername muss 2 bis 40 Zeichen lang sein"}), 400
+    if len(password) < 4:
+        return jsonify({"error": "Passwort muss mindestens 4 Zeichen lang sein"}), 400
+
+    conn = get_connection()
+    try:
+        course = conn.execute(
+            "SELECT id, name, join_code FROM courses WHERE id = ?", (course_id,)
+        ).fetchone()
+        stored_code = ((course["join_code"] if course else "") or "").upper()
+        if not course or not stored_code or not secrets.compare_digest(
+            stored_code.encode(), join_code.encode()
+        ):
+            return jsonify({"error": "Ungültiger Beitrittscode für diesen Kurs"}), 403
+
+        taken = conn.execute(
+            "SELECT id FROM users WHERE lower(username) = lower(?)", (username,)
+        ).fetchone()
+        if taken:
+            return jsonify({"error": "Dieser Teilnehmername ist bereits vergeben"}), 400
+
+        cur = conn.execute(
+            "INSERT INTO users (username, password_hash, role, course_id, has_four_card) "
+            "VALUES (?, ?, 'teilnehmer', ?, 0)",
+            (username, generate_password_hash(password), course["id"]),
+        )
+        conn.commit()
+        user_id = cur.lastrowid
+    finally:
+        conn.close()
+
+    token = secrets.token_hex(24)
+    TOKENS[token] = user_id
+    return jsonify({
+        "token": token,
+        "user": {
+            "id": user_id,
+            "username": username,
+            "role": "teilnehmer",
+            "courseId": course["id"],
+            "courseName": course["name"],
+        },
+    }), 201
 
 
 @bp.post("/api/logout")

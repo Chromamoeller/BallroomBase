@@ -10,6 +10,7 @@ import HomePage from "./pages/HomePage.jsx";
 import KursePage from "./pages/KursePage.jsx";
 import LoginPage from "./pages/LoginPage.jsx";
 import NutzerPage from "./pages/NutzerPage.jsx";
+import RegisterPage from "./pages/RegisterPage.jsx";
 import WelcomePage from "./pages/WelcomePage.jsx";
 
 export default function App() {
@@ -17,6 +18,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<HomePage />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
       <Route
         element={
           <ProtectedRoute>

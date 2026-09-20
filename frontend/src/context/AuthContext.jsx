@@ -42,6 +42,23 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  const register = useCallback(async (payload) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await api.register(payload);
+      localStorage.setItem(STORAGE_TOKEN, data.token);
+      localStorage.setItem(STORAGE_USER, JSON.stringify(data.user));
+      setUser(data.user);
+      return data.user;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await api.logout();
@@ -54,8 +71,8 @@ export function AuthProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, loading, error, login, logout, isAdmin: user?.role === "admin" }),
-    [user, loading, error, login, logout]
+    () => ({ user, loading, error, login, register, logout, isAdmin: user?.role === "admin" }),
+    [user, loading, error, login, register, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

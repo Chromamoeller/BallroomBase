@@ -8,7 +8,7 @@ import os
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
-from database import init_db
+from database import ensure_join_codes, init_db
 from seed import seed
 
 
@@ -23,6 +23,7 @@ CORS(app, supports_credentials=True)
 
 init_db()
 seed()
+ensure_join_codes()
 
 
 # Blueprints (Routen-Module) erst nach init_db/seed importieren, damit beim
