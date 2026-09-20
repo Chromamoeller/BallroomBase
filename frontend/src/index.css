@@ -42,3 +42,25 @@ html.dark body {
     @apply border-brand-500 bg-brand-600 text-white shadow-sm hover:border-brand-600 hover:text-white dark:border-brand-400 dark:bg-brand-500 dark:hover:border-brand-400 dark:hover:text-white;
   }
 }
+
+/* Dark-Mode-Wechsel: alte und neue Ansicht liegen übereinander, die neue wird
+   per clip-path (siehe ThemeContext) als Welle eingeblendet. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+  z-index: 1;
+}
+
+::view-transition-new(root) {
+  z-index: 2;
+}
+
+html.theme-switching *,
+html.theme-switching *::before,
+html.theme-switching *::after {
+  transition: none !important;
+}
